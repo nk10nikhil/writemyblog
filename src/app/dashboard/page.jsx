@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import Link from 'next/link';
-import { connectToDatabase } from '@/lib/mongodb';
+import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
 import Follow from '@/models/Follow';
 import Connection from '@/models/Connection';
