@@ -4,12 +4,55 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import dynamic from 'next/dynamic';
 
-// Import Quill dynamically
+// Import Quill dynamically with React 19 compatibility
 const ReactQuill = dynamic(
   async () => {
-    const { default: RQ } = await import('react-quill');
-    // We now import the CSS in globals.css instead
-    return RQ;
+    // We need to apply some special handling for React 19 compatibility
+    if (typeof window !== 'undefined') {
+      // Apply a patch for findDOMNode before importing React Quill
+      const originalCreateElement = React.createElement;
+      const originalCloneElement = React.cloneElement;
+
+      // Override createElement to add a ref to divs if needed for Quill
+      React.createElement = function patchedCreateElement(type, props, ...children) {
+        if (type === 'div' && props && props.className &&
+          typeof props.className === 'string' &&
+          props.className.includes('quill')) {
+          props = { ...props, suppressHydrationWarning: true };
+        }
+        return originalCreateElement.call(React, type, props, ...children);
+      };
+
+      // Import React Quill after our patch
+      const { default: RQ } = await import('react-quill');
+
+      // Restore original React methods
+      React.createElement = originalCreateElement;
+      React.cloneElement = originalCloneElement;
+
+      // Create a modern wrapper for React Quill
+      return function ModernReactQuill(props) {
+        const containerRef = useRef(null);
+        const [mounted, setMounted] = useState(false);
+
+        useEffect(() => {
+          setMounted(true);
+        }, []);
+
+        if (!mounted) {
+          return <div ref={containerRef} className="quill-loading">Loading editor...</div>;
+        }
+
+        return (
+          <div ref={containerRef} className="modern-quill-wrapper">
+            <RQ {...props} />
+          </div>
+        );
+      };
+    }
+
+    // Fallback for SSR
+    return () => <div>Editor loading...</div>;
   },
   { ssr: false, loading: () => <p>Loading editor...</p> }
 );
@@ -51,47 +94,55 @@ const formats = [
 export default function BlogEditor({ value, onChange }) {
   const { theme } = useTheme();
   const [editorValue, setEditorValue] = useState(value || '');
-  const editorRef = useRef(null);
+  const editorWrapperRef = useRef(null);
 
   // Apply theme changes to Quill
   useEffect(() => {
-    if (editorRef.current) {
-      const editor = document.querySelector('.quill');
-      if (editor) {
-        if (theme === 'dark') {
-          editor.classList.add('dark-theme');
-        } else {
-          editor.classList.remove('dark-theme');
-        }
+    if (!editorWrapperRef.current) return;
+
+    const wrapper = editorWrapperRef.current;
+    const editor = wrapper.querySelector('.ql-container');
+    const toolbar = wrapper.querySelector('.ql-toolbar');
+
+    if (editor && toolbar) {
+      if (theme === 'dark') {
+        editor.classList.add('dark-theme');
+        toolbar.classList.add('dark-theme');
+      } else {
+        editor.classList.remove('dark-theme');
+        toolbar.classList.remove('dark-theme');
       }
     }
-  }, [theme, editorRef]);
+  }, [theme]);
 
   const handleChange = (content) => {
     setEditorValue(content);
     onChange(content);
   };
 
-  // Custom styles for the editor
-  const editorStyle = {
-    height: '350px',
-    marginBottom: '20px',
-  };
-
   return (
-    <div className="blog-editor">
+    <div className="blog-editor" ref={editorWrapperRef}>
       <style jsx global>{`
-        .quill {
+        .modern-quill-wrapper {
+          border-radius: 0.375rem;
+          margin-bottom: 20px;
+        }
+        
+        .ql-container, .ql-toolbar {
           border-radius: 0.375rem;
           border: 1px solid rgb(209, 213, 219);
         }
         
-        .dark-theme .ql-toolbar {
+        .ql-container {
+          min-height: 350px;
+        }
+        
+        .dark-theme.ql-toolbar {
           border-color: rgb(75, 85, 99);
           background-color: rgb(55, 65, 81);
         }
         
-        .dark-theme .ql-container {
+        .dark-theme.ql-container {
           border-color: rgb(75, 85, 99);
           background-color: rgb(31, 41, 55);
           color: rgb(229, 231, 235);
@@ -131,13 +182,11 @@ export default function BlogEditor({ value, onChange }) {
       `}</style>
       {typeof window !== 'undefined' && (
         <ReactQuill
-          ref={editorRef}
           theme="snow"
           modules={modules}
           formats={formats}
           value={editorValue}
           onChange={handleChange}
-          style={editorStyle}
           placeholder="Write your blog content here..."
         />
       )}
