@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
-import { ChartBarIcon } from '@heroicons/react/outline';
+import { ChartBarIcon } from '@heroicons/react/24/outline';
 
 export default function TrendingBlogs() {
     const [blogs, setBlogs] = useState([]);
@@ -24,7 +24,7 @@ export default function TrendingBlogs() {
                 }
 
                 const data = await response.json();
-                setBlogs(data.blogs);
+                setBlogs(data.data || []);
             } catch (error) {
                 console.error('Error fetching trending blogs:', error);
                 setError(error.message);
@@ -106,12 +106,12 @@ export default function TrendingBlogs() {
                                 {blog.title}
                             </h3>
                             <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
-                                {blog.content.replace(/<[^>]*>/g, '').substring(0, 120)}...
+                                {blog.excerpt || "No excerpt available"}
                             </p>
                             <div className="mt-auto flex justify-between items-center text-sm">
                                 <div className="flex items-center">
                                     <div className="relative h-6 w-6 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 mr-2">
-                                        {blog.author.avatar && (
+                                        {blog.author?.avatar && (
                                             <Image
                                                 src={blog.author.avatar}
                                                 alt={blog.author.name}
@@ -121,11 +121,11 @@ export default function TrendingBlogs() {
                                         )}
                                     </div>
                                     <span className="text-gray-700 dark:text-gray-300">
-                                        {blog.author.name}
+                                        {blog.author?.name || "Anonymous"}
                                     </span>
                                 </div>
                                 <span className="text-gray-500 dark:text-gray-400">
-                                    {formatDistanceToNow(new Date(blog.createdAt), { addSuffix: true })}
+                                    {blog.createdAt ? formatDistanceToNow(new Date(blog.createdAt), { addSuffix: true }) : "Unknown date"}
                                 </span>
                             </div>
                         </div>

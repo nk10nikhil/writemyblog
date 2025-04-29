@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { TagIcon } from '@heroicons/react/outline';
+import { TagIcon } from '@heroicons/react/24/outline';
 
 export default function PopularTags({ limit = 10 }) {
     const [tags, setTags] = useState([]);
@@ -21,8 +21,9 @@ export default function PopularTags({ limit = 10 }) {
                     throw new Error('Failed to fetch popular tags');
                 }
 
-                const data = await response.json();
-                setTags(data.tags);
+                const result = await response.json();
+                // Handle the correct API response format (data.data instead of data.tags)
+                setTags(result.data || []);
             } catch (error) {
                 console.error('Error fetching popular tags:', error);
                 setError(error.message);
