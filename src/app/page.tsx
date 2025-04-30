@@ -1,35 +1,27 @@
-import { Inter } from 'next/font/google';
-import { ThemeProvider } from '@/context/ThemeContext';
-import AuthSessionProvider from '@/components/auth/AuthSessionProvider';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
-import './globals.css';
+import FeaturedBlogs from '@/components/blog/FeaturedBlogs';
+import TrendingBlogs from '@/components/blog/TrendingBlogs';
+import PopularTags from '@/components/blog/PopularTags';
 
-const inter = Inter({ subsets: ['latin'] });
-
-export const metadata = {
-  title: 'ModernBlog - Share Your Stories',
-  description: 'A modern blogging platform for writers and readers',
-};
-
-import { ReactNode } from 'react';
-
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function Home() {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
-        <AuthSessionProvider>
-          <ThemeProvider>
-            <div className="flex flex-col min-h-screen">
-              <Header />
-              <main className="flex-grow container mx-auto px-4 py-6 md:py-8">
-                {children}
-              </main>
-              <Footer />
-            </div>
-          </ThemeProvider>
-        </AuthSessionProvider>
-      </body>
-    </html>
+    <div className="space-y-10">
+      <section className="text-center py-10">
+        <h1 className="text-4xl md:text-5xl font-bold mb-4">Welcome to Blogly</h1>
+        <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          Discover stories, thinking, and expertise from writers on any topic.
+        </p>
+      </section>
+
+      <FeaturedBlogs />
+
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-2">
+          <TrendingBlogs />
+        </div>
+        <div>
+          <PopularTags />
+        </div>
+      </div>
+    </div>
   );
 }
