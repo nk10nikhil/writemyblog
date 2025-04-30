@@ -1,26 +1,53 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
 import Blog from '@/models/Blog';
+import connectToDatabase from '@/lib/mongodb';
 
 export async function GET(request) {
     try {
-        await connectDB();
+        // Connect to the database
+        await connectToDatabase();
 
-        // Get the limit from query params or default to 10
+        // Get query parameter for limit (default to 10 if not provided)
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '10');
 
-        // Aggregate tags from blogs and count their occurrences
-        const tagStats = await Blog.aggregate([
+        // Aggregate to find the most popular tags
+        const tagAggregation = await Blog.aggregate([
+            // Only include public blogs
+            { $match: { privacy: 'public' } },
+            // Unwind the tags array to separate documents
             { $unwind: '$tags' },
-            { $group: { _id: '$tags', count: { $sum: 1 } } },
+            // Group by tag and count occurrences
+            {
+                $group: {
+                    _id: '$tags',
+                    count: { $sum: 1 }
+                }
+            },
+            // Sort by count descending
             { $sort: { count: -1 } },
+            // Limit to requested number
             { $limit: limit },
-            { $project: { _id: 0, name: '$_id', count: 1 } }
+            // Rename _id to name for clarity
+            {
+                $project: {
+                    _id: 0,
+                    name: '$_id',
+                    count: 1
+                }
+            }
         ]);
 
-        return NextResponse.json({ success: true, data: tagStats });
+        return NextResponse.json({
+            success: true,
+            data: tagAggregation
+        });
+
     } catch (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        console.error('Error fetching popular tags:', error);
+        return NextResponse.json(
+            { success: false, message: 'Failed to fetch popular tags', error: error.message },
+            { status: 500 }
+        );
     }
 }
