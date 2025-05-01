@@ -16,17 +16,23 @@ if (!MONGODB_URI) {
 }
 
 // Define type for global mongoose cache
-declare global {
-    var mongoose: {
-        conn: typeof mongoose | null;
-        promise: Promise<typeof mongoose> | null;
-    };
+interface MongooseCache {
+    conn: typeof mongoose | null;
+    promise: Promise<typeof mongoose> | null;
 }
 
-let cached = global.mongoose;
+// Add mongoose to the NodeJS global type
+declare global {
+    // eslint-disable-next-line no-var
+    var mongoose: MongooseCache | undefined;
+}
 
-if (!cached) {
-    cached = global.mongoose = { conn: null, promise: null };
+// Initialize cached connection
+const cached: MongooseCache = global.mongoose || { conn: null, promise: null };
+
+// Save to global
+if (!global.mongoose) {
+    global.mongoose = cached;
 }
 
 async function connectToDatabase() {
@@ -74,7 +80,7 @@ async function connectToDatabase() {
 
                 if (isDevelopment) {
                     console.warn('Failed to connect to MongoDB. Using mock data in development mode.');
-                    return null;
+                    return null as unknown as typeof mongoose; // Cast null to mongoose type to satisfy TypeScript
                 }
 
                 throw err;

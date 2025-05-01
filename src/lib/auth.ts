@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth/next';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -19,7 +19,8 @@ export async function getAuthSession() {
 }
 
 // Middleware to require authentication for API routes
-export async function requireAuth(req: NextRequest) {
+export async function requireAuth() {
+    // Removed unused parameter: req
     const session = await getServerSession();
 
     if (!session || !session.user) {
@@ -42,13 +43,37 @@ export async function requireAuthClient() {
     }
 }
 
+// Define interfaces for type safety - using a type instead of extending Session
+interface UserSession {
+    user?: {
+        id?: string;
+        role?: string;
+        name?: string | null;
+        email?: string | null;
+        image?: string | null;
+        [key: string]: unknown;
+    };
+    expires?: string;
+}
+
+interface BlogAuthor {
+    _id: {
+        toString: () => string;
+    };
+}
+
+interface BlogData {
+    privacy: string;
+    author: BlogAuthor;
+}
+
 // Helper to check if user is authenticated
-export function isAuthenticated(session: any) {
+export function isAuthenticated(session: UserSession): boolean {
     return !!session?.user;
 }
 
 // Helper to check if user can modify a resource
-export function canModifyResource(session: any, resourceAuthorId: string) {
+export function canModifyResource(session: UserSession, resourceAuthorId: string): boolean {
     if (!session?.user) return false;
 
     // Check if user is the author or an admin
@@ -59,7 +84,7 @@ export function canModifyResource(session: any, resourceAuthorId: string) {
 }
 
 // Helper to determine user access level for a blog based on privacy settings
-export function canAccessBlog(blog: any, session: any) {
+export function canAccessBlog(blog: BlogData, session: UserSession): boolean {
     if (!blog) return false;
 
     // Public blogs are accessible to everyone
@@ -92,6 +117,6 @@ export function canAccessBlog(blog: any, session: any) {
 }
 
 // Helper to check if the user is an admin
-export function isAdmin(session: any) {
+export function isAdmin(session: UserSession): boolean {
     return session?.user?.role === 'admin';
 }

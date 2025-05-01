@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
-import Comment from '@/models/Comment';
-import slugify from 'slugify';
 
 // Mock data for development when MongoDB isn't available
 const MOCK_BLOGS = [

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
 
@@ -67,7 +66,7 @@ const MOCK_FEATURED_BLOGS = [
     }
 ];
 
-export async function GET(request) {
+export async function GET() {
     try {
         const db = await connectToDatabase();
 
