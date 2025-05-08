@@ -86,7 +86,8 @@ async function getUserProfile(username, currentUserId) {
 }
 
 export async function generateMetadata({ params }) {
-    const { username } = params;
+    // Properly handle params by using it directly without destructuring
+    const username = params.username;
     await connectToDatabase();
     const user = await User.findOne({ username: username.toLowerCase() }).select('name bio').lean();
 
@@ -104,7 +105,8 @@ export async function generateMetadata({ params }) {
 
 export default async function ProfilePage({ params }) {
     const session = await getServerSession();
-    const { username } = params;
+    // Properly handle params by using it directly without destructuring
+    const username = params.username;
     const userData = await getUserProfile(username, session?.user?.id);
 
     if (!userData) {
