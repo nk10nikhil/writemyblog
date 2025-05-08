@@ -1,161 +1,92 @@
-import { Suspense } from 'react';
-import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
+import { redirect, notFound } from 'next/navigation';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import Blog from '@/models/Blog';
-import Follow from '@/models/Follow';
-import Connection from '@/models/Connection';
+import { getServerSession } from 'next-auth/next';
 import ProfileCard from '@/components/profile/ProfileCard';
-import BlogGrid from '@/components/blog/BlogGrid';
-import BlogCardSkeleton from '@/components/blog/BlogCardSkeleton';
-import TabNavigation from '@/components/common/TabNavigation';
+import BlogTabs from '@/components/profile/BlogTabs';
 
-async function getUserProfile(username, currentUserId) {
+async function getUserProfile(username) {
     await connectToDatabase();
 
-    // Get user data
-    const user = await User.findOne({ username: username.toLowerCase() }).lean();
+    // Find user by username
+    const user = await User.findOne({ username }).lean();
 
     if (!user) {
         return null;
     }
 
-    // Convert MongoDB _id to string
-    const userId = user._id.toString();
-    user._id = userId;
-
-    // Get user stats
-    const [postCount, followerCount, followingCount, connectionCount] = await Promise.all([
-        Blog.countDocuments({ author: userId }),
-        Follow.countDocuments({ following: userId }),
-        Follow.countDocuments({ follower: userId }),
-        Connection.countDocuments({
-            $or: [
-                { requester: userId, status: 'accepted' },
-                { recipient: userId, status: 'accepted' },
-            ],
-        }),
-    ]);
-
-    // Check relationship with current user
-    let isFollowing = false;
-    let connectionStatus = null;
-
-    if (currentUserId) {
-        // Check if current user is following this profile
-        const followRelationship = await Follow.findOne({
-            follower: currentUserId,
-            following: userId
-        });
-
-        isFollowing = !!followRelationship;
-
-        // Check connection status
-        const connectionRelationship = await Connection.findOne({
-            $or: [
-                { requester: currentUserId, recipient: userId },
-                { requester: userId, recipient: currentUserId },
-            ]
-        });
-
-        if (connectionRelationship) {
-            if (connectionRelationship.status === 'pending') {
-                connectionStatus = connectionRelationship.requester.toString() === currentUserId
-                    ? 'pending'  // Current user sent the request
-                    : 'received';  // Current user received the request
-            } else {
-                connectionStatus = connectionRelationship.status;
-            }
-        }
-    }
-
+    // Format user data
     return {
-        profile: {
-            ...user,
-            isFollowing,
-            connectionStatus,
-        },
-        stats: {
-            posts: postCount,
-            followers: followerCount,
-            following: followingCount,
-            connections: connectionCount,
-        },
+        ...user,
+        _id: user._id.toString(),
+        createdAt: user.createdAt?.toISOString(),
+        updatedAt: user.updatedAt?.toISOString()
     };
 }
 
+async function getUserBlogs(userId) {
+    // Get published blogs by user
+    const blogs = await Blog.find({
+        author: userId,
+        privacy: 'public'
+    })
+        .sort({ createdAt: -1 })
+        .lean();
+
+    // Format blogs for response
+    return blogs.map(blog => ({
+        ...blog,
+        _id: blog._id.toString(),
+        author: blog.author.toString(),
+        createdAt: blog.createdAt?.toISOString(),
+        updatedAt: blog.updatedAt?.toISOString()
+    }));
+}
+
 export async function generateMetadata({ params }) {
-    // Properly handle params by using it directly without destructuring
-    const username = params.username;
-    await connectToDatabase();
-    const user = await User.findOne({ username: username.toLowerCase() }).select('name bio').lean();
+    const user = await getUserProfile(params.username);
 
     if (!user) {
         return {
-            title: 'Profile Not Found',
+            title: 'User Not Found'
         };
     }
 
     return {
-        title: `${user.name} | ModernBlog`,
-        description: user.bio ? `${user.bio.substring(0, 160)}` : `Check out ${user.name}'s profile on ModernBlog`,
+        title: `${user.name} (@${user.username}) | WritemyBlog`,
+        description: user.bio || `Check out ${user.name}'s profile on WritemyBlog`
     };
 }
 
 export default async function ProfilePage({ params }) {
     const session = await getServerSession();
-    // Properly handle params by using it directly without destructuring
-    const username = params.username;
-    const userData = await getUserProfile(username, session?.user?.id);
+    const user = await getUserProfile(params.username);
 
-    if (!userData) {
+    if (!user) {
         notFound();
     }
 
-    const { profile, stats } = userData;
-    const currentUserId = session?.user?.id;
-    const isOwnProfile = currentUserId === profile._id;
+    // Check if viewing own profile
+    const isOwnProfile = session?.user?.id === user._id;
 
-    // Define tabs based on whether it's the user's own profile or someone else's
-    const tabs = [
-        { id: 'posts', label: 'Posts', href: `/profile/${username}` },
-        { id: 'about', label: 'About', href: `/profile/${username}/about` },
-    ];
-
-    // Users can see their own private content
-    const visibilityQuery = isOwnProfile
-        ? { author: profile._id }
-        : {
-            author: profile._id,
-            $or: [
-                { privacy: 'public' },
-                // If the current user is connected to this profile, they can see 'connections' content
-                ...(profile.connectionStatus === 'accepted' ? [{ privacy: 'connections' }] : []),
-                // If the current user follows this profile, they can see 'followers' content
-                ...(profile.isFollowing ? [{ privacy: 'followers' }] : []),
-            ]
-        };
+    // Get user's public blogs
+    const blogs = await getUserBlogs(user._id);
 
     return (
-        <div className="space-y-8">
-            <ProfileCard profile={profile} stats={stats} />
+        <div className="max-w-4xl mx-auto px-4 py-8">
+            <ProfileCard
+                user={user}
+                isOwnProfile={isOwnProfile}
+            />
 
-            <TabNavigation tabs={tabs} />
-
-            <h2 className="text-2xl font-bold">
-                {isOwnProfile ? 'My Posts' : `${profile.name}'s Posts`}
-            </h2>
-
-            <Suspense fallback={
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[...Array(6)].map((_, i) => (
-                        <BlogCardSkeleton key={i} />
-                    ))}
-                </div>
-            }>
-                <BlogGrid authorId={profile._id} />
-            </Suspense>
+            <div className="mt-8">
+                <BlogTabs
+                    blogs={blogs}
+                    username={user.username}
+                    isOwnProfile={isOwnProfile}
+                />
+            </div>
         </div>
     );
 }

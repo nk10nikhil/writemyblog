@@ -3,268 +3,263 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
-import { EyeIcon, ClockIcon } from '@heroicons/react/24/outline';
-import DOMPurify from 'dompurify';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import {
+    PencilIcon,
+    TrashIcon,
+    EyeIcon,
+    HeartIcon,
+    ChatBubbleLeftIcon,
+    ShareIcon,
+    BookmarkIcon,
+    LockClosedIcon
+} from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import Comments from './Comments';
+import ShareButton from '../common/ShareButton';
 import LikeButton from './LikeButton';
-import CommentSection from './CommentSection';
-import ShareButton from './ShareButton';
-import FollowButton from '@/components/profile/FollowButton';
 
-export default function BlogDetailView({
-    blog,
-    comments,
-    userLiked,
-    isFollowingAuthor,
-    relatedBlogs = [],
-    currentUserId
-}) {
+export default function BlogDetailView({ blog, comments = [] }) {
+    const router = useRouter();
     const { data: session } = useSession();
-    const [readingTime, setReadingTime] = useState('');
-    const isAuthor = session?.user?.id === blog.author._id;
-    const [isFollowing, setIsFollowing] = useState(isFollowingAuthor);
-    const [sanitizedContent, setSanitizedContent] = useState('');
+    const [isLiked, setIsLiked] = useState(false);
+    const [likesCount, setLikesCount] = useState(blog.likes?.length || 0);
+    const [showComments, setShowComments] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
-    // Sanitize content as soon as the component mounts
+    const isOwner = session?.user?.id === blog.author._id;
+
+    // Check if the current user has liked the blog
     useEffect(() => {
-        if (typeof window !== 'undefined' && blog.content) {
-            setSanitizedContent(DOMPurify.sanitize(blog.content));
+        if (session?.user?.id && blog.likes) {
+            setIsLiked(blog.likes.includes(session.user.id));
         }
-    }, [blog.content]);
+    }, [session, blog.likes]);
 
-    // Calculate reading time
-    useEffect(() => {
-        const text = blog.content.replace(/<[^>]*>/g, '');
-        const wordsPerMinute = 200;
-        const words = text.trim().split(/\s+/).length;
-        const time = Math.ceil(words / wordsPerMinute);
-        setReadingTime(`${time} min read`);
-    }, [blog.content]);
+    const handleEdit = () => {
+        router.push(`/blog/edit/${blog._id}`);
+    };
 
-    const formatDate = (dateString) => {
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this blog post? This action cannot be undone.')) {
+            return;
+        }
+
         try {
-            return format(new Date(dateString), 'MMMM d, yyyy');
+            const response = await fetch(`/api/blogs/${blog._id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Something went wrong');
+            }
+
+            router.push('/dashboard/blogs');
         } catch (error) {
-            return 'Invalid date';
+            setErrorMessage(error.message);
+            console.error('Error deleting blog:', error);
         }
     };
 
-    const handleFollowChange = (newFollowState) => {
-        setIsFollowing(newFollowState);
+    const handleLike = async () => {
+        if (!session) {
+            router.push(`/auth/login?callbackUrl=/blog/${blog._id}`);
+            return;
+        }
+
+        // Optimistic update
+        setIsLiked(!isLiked);
+        setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
+
+        try {
+            const response = await fetch(`/api/blogs/${blog._id}/like`, {
+                method: 'POST',
+            });
+
+            if (!response.ok) {
+                // Revert on failure
+                setIsLiked(!isLiked);
+                setLikesCount(isLiked ? likesCount : likesCount - 1);
+
+                const data = await response.json();
+                throw new Error(data.message || 'Failed to like/unlike the blog');
+            }
+        } catch (error) {
+            console.error('Error updating like status:', error);
+        }
+    };
+
+    const toggleComments = () => {
+        setShowComments(!showComments);
     };
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <article className="space-y-8">
-                {/* Blog header */}
-                <header className="space-y-6">
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2">
+        <div className="max-w-4xl mx-auto">
+            {errorMessage && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 p-4 rounded-md">
+                    {errorMessage}
+                </div>
+            )}
+
+            {/* Privacy indicator */}
+            {blog.privacy !== 'public' && (
+                <div className="mb-4 flex items-center bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-3 rounded-md">
+                    <LockClosedIcon className="h-5 w-5 mr-2" />
+                    <p>
+                        {blog.privacy === 'private'
+                            ? 'This blog is private and only visible to you.'
+                            : blog.privacy === 'followers'
+                                ? 'This blog is only visible to your followers.'
+                                : 'This blog is only visible to your connections.'}
+                    </p>
+                </div>
+            )}
+
+            {/* Cover image */}
+            {blog.coverImage && (
+                <div className="relative h-64 sm:h-80 md:h-96 rounded-xl overflow-hidden mb-6">
+                    <Image
+                        src={blog.coverImage}
+                        alt={blog.title}
+                        fill
+                        priority
+                        className="object-cover"
+                    />
+                </div>
+            )}
+
+            {/* Blog info */}
+            <div className="mb-8">
+                {/* Title */}
+                <h1 className="text-3xl md:text-4xl font-bold mb-4">{blog.title}</h1>
+
+                {/* Author and date */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                        <Link href={`/profile/${blog.author.username}`} className="flex items-center group">
+                            <div className="relative h-10 w-10 rounded-full overflow-hidden mr-3">
+                                <Image
+                                    src={blog.author.avatar || '/images/placeholder-blog.jpg'}
+                                    alt={blog.author.name}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                            <div>
+                                <p className="font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                    {blog.author.name}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {format(new Date(blog.createdAt), 'MMMM d, yyyy')}
+                                </p>
+                            </div>
+                        </Link>
+                    </div>
+
+                    {/* Owner actions */}
+                    {isOwner && (
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={handleEdit}
+                                className="btn-outline-secondary flex items-center text-sm"
+                            >
+                                <PencilIcon className="h-4 w-4 mr-1" />
+                                Edit
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="btn-outline-danger flex items-center text-sm"
+                            >
+                                <TrashIcon className="h-4 w-4 mr-1" />
+                                Delete
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Tags */}
+                {blog.tags && blog.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-6">
                         {blog.tags.map((tag, index) => (
                             <Link
                                 key={index}
-                                href={`/explore?tag=${encodeURIComponent(tag)}`}
-                                className="text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-full transition-colors"
+                                href={`/tags/${tag}`}
+                                className="text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                             >
                                 #{tag}
                             </Link>
                         ))}
                     </div>
-
-                    {/* Title */}
-                    <h1 className="text-4xl font-bold">{blog.title}</h1>
-
-                    {/* Author info and meta */}
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-4">
-                            <Link href={`/profile/${blog.author.username}`}>
-                                <div className="relative h-12 w-12 rounded-full overflow-hidden">
-                                    <Image
-                                        src={blog.author.avatar || '/images/default-avatar.png'}
-                                        alt={blog.author.name}
-                                        fill
-                                        className="object-cover"
-                                    />
-                                </div>
-                            </Link>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <Link
-                                        href={`/profile/${blog.author.username}`}
-                                        className="font-medium hover:underline"
-                                    >
-                                        {blog.author.name}
-                                    </Link>
-                                    {!isAuthor && session && (
-                                        <FollowButton
-                                            profileId={blog.author._id}
-                                            isFollowing={isFollowing}
-                                            onChange={handleFollowChange}
-                                        />
-                                    )}
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-3">
-                                    <span>{formatDate(blog.createdAt)}</span>
-                                    <span>•</span>
-                                    <span className="flex items-center">
-                                        <ClockIcon className="h-4 w-4 mr-1" />
-                                        {readingTime}
-                                    </span>
-                                    <span>•</span>
-                                    <span className="flex items-center">
-                                        <EyeIcon className="h-4 w-4 mr-1" />
-                                        {blog.viewCount || 0} views
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {isAuthor && (
-                            <Link
-                                href={`/blog/edit/${blog._id}`}
-                                className="btn-secondary text-sm"
-                            >
-                                Edit Post
-                            </Link>
-                        )}
-                    </div>
-                </header>
-
-                {/* Cover Image */}
-                {blog.coverImage && (
-                    <div className="relative h-96 w-full rounded-lg overflow-hidden">
-                        <Image
-                            src={blog.coverImage}
-                            alt={blog.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            className="object-cover"
-                            priority
-                        />
-                    </div>
                 )}
 
-                {/* Blog content */}
+                {/* Content */}
                 <div
-                    className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-blue-600 dark:prose-a:text-blue-400"
-                    dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+                    className="prose dark:prose-invert prose-lg max-w-none mb-8"
+                    dangerouslySetInnerHTML={{ __html: blog.content }}
                 />
 
-                {/* Action buttons */}
-                <div className="border-t border-b border-gray-200 dark:border-gray-800 py-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <LikeButton
-                            blogId={blog._id}
-                            initialLikeCount={blog.likes?.length || 0}
-                            initialLiked={userLiked}
-                        />
-                        <button
-                            onClick={() => document.getElementById('comments').scrollIntoView({ behavior: 'smooth' })}
-                            className="flex items-center space-x-1.5 py-2 px-3 rounded-full text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
-                            </svg>
+                {/* Blog stats and actions */}
+                <div className="flex items-center justify-between py-4 border-t border-b border-gray-200 dark:border-gray-800">
+                    {/* Stats */}
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center">
+                            <EyeIcon className="h-5 w-5 mr-1" />
+                            <span>{blog.viewCount || 0}</span>
+                        </div>
+                        <div className="flex items-center">
+                            <ChatBubbleLeftIcon className="h-5 w-5 mr-1" />
                             <span>{comments.length}</span>
+                        </div>
+                        <div className="flex items-center">
+                            {isLiked ? (
+                                <HeartIconSolid className="h-5 w-5 mr-1 text-red-500" />
+                            ) : (
+                                <HeartIcon className="h-5 w-5 mr-1" />
+                            )}
+                            <span>{likesCount}</span>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center space-x-2">
+                        <LikeButton
+                            isLiked={isLiked}
+                            onClick={handleLike}
+                        />
+
+                        <button
+                            onClick={toggleComments}
+                            className="btn-outline-secondary flex items-center p-2"
+                            aria-label="Comments"
+                        >
+                            <ChatBubbleLeftIcon className="h-5 w-5" />
+                        </button>
+
+                        <ShareButton
+                            url={`${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/blog/${blog._id}`}
+                            title={blog.title}
+                        />
+
+                        <button
+                            className="btn-outline-secondary flex items-center p-2"
+                            aria-label="Bookmark"
+                        >
+                            <BookmarkIcon className="h-5 w-5" />
                         </button>
                     </div>
-                    <ShareButton title={blog.title} url={`/blog/${blog._id}`} />
                 </div>
+            </div>
 
-                {/* Author bio */}
-                <div className="card p-6 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                    <Link href={`/profile/${blog.author.username}`}>
-                        <div className="relative h-20 w-20 rounded-full overflow-hidden">
-                            <Image
-                                src={blog.author.avatar || '/images/default-avatar.png'}
-                                alt={blog.author.name}
-                                fill
-                                className="object-cover"
-                            />
-                        </div>
-                    </Link>
-                    <div className="flex-1 text-center sm:text-left">
-                        <Link
-                            href={`/profile/${blog.author.username}`}
-                            className="font-bold text-lg hover:underline"
-                        >
-                            {blog.author.name}
-                        </Link>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">
-                            {blog.author.bio || `Writer at ModernBlog`}
-                        </p>
-                        {!isAuthor && (
-                            <div className="mt-4">
-                                <FollowButton
-                                    profileId={blog.author._id}
-                                    isFollowing={isFollowing}
-                                    onChange={handleFollowChange}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Related Posts */}
-                {relatedBlogs.length > 0 && (
-                    <div className="space-y-4">
-                        <h3 className="text-xl font-bold">Related Posts</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {relatedBlogs.map((relatedBlog) => (
-                                <Link
-                                    key={relatedBlog._id}
-                                    href={`/blog/${relatedBlog._id}`}
-                                    className="card p-4 hover:shadow-md transition-shadow"
-                                >
-                                    <div className="relative h-36 w-full rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 mb-3">
-                                        {relatedBlog.coverImage ? (
-                                            <Image
-                                                src={relatedBlog.coverImage}
-                                                alt={relatedBlog.title}
-                                                fill
-                                                className="object-cover"
-                                            />
-                                        ) : (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-gray-400">No image</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <h4 className="font-medium leading-snug line-clamp-2 mb-2">
-                                        {relatedBlog.title}
-                                    </h4>
-                                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                        <div className="flex items-center">
-                                            <div className="relative h-6 w-6 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 mr-2">
-                                                {relatedBlog.author.avatar && (
-                                                    <Image
-                                                        src={relatedBlog.author.avatar}
-                                                        alt={relatedBlog.author.name}
-                                                        fill
-                                                        className="object-cover"
-                                                    />
-                                                )}
-                                            </div>
-                                            <span>{relatedBlog.author.name}</span>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Comments section */}
-                <div id="comments" className="pt-8">
-                    <CommentSection
-                        blogId={blog._id}
-                        comments={comments}
-                        currentUserId={currentUserId}
-                        blogAuthorId={blog.author._id}
-                    />
-                </div>
-            </article>
+            {/* Comments */}
+            {showComments && (
+                <Comments
+                    blogId={blog._id}
+                    initialComments={comments}
+                />
+            )}
         </div>
     );
 }

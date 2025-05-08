@@ -1,73 +1,67 @@
-import connectToDatabase from '@/lib/mongodb';
-import { getServerSession } from 'next-auth/next';
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import mongoose from 'mongoose';
+import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
-import User from '@/models/User';
 
-// PUT handler to like/unlike a blog post
-export async function PUT(request, { params }) {
+// Helper functions
+function errorResponse(message, status = 500) {
+    return NextResponse.json({ success: false, message }, { status });
+}
+
+function successResponse(data, status = 200) {
+    return NextResponse.json({ success: true, ...data }, { status });
+}
+
+// Toggle like on a blog post
+export async function POST(request, { params }) {
     try {
-        const session = await getServerSession();
+        const { id: blogId } = params;
+
+        // Validate blog ID
+        if (!blogId || !mongoose.Types.ObjectId.isValid(blogId)) {
+            return errorResponse('Invalid blog ID', 400);
+        }
 
         // Check authentication
-        if (!session || !session.user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            );
+        const session = await getServerSession();
+        if (!session) {
+            return errorResponse('Authentication required', 401);
         }
+
+        const userId = session.user.id;
 
         await connectToDatabase();
-        const { id } = params;
 
-        // Check if the blog post exists
-        const blog = await Blog.findById(id);
+        // Find the blog
+        const blog = await Blog.findById(blogId);
+
         if (!blog) {
-            return NextResponse.json(
-                { error: 'Blog post not found' },
-                { status: 404 }
-            );
+            return errorResponse('Blog not found', 404);
         }
 
-        // Get user ID from session
-        const user = await User.findOne({ email: session.user.email });
-        if (!user) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            );
-        }
-
-        const userId = user._id.toString();
+        // Check if user has already liked the blog
         const hasLiked = blog.likes.includes(userId);
 
-        // Toggle like status
+        // Toggle like
         if (hasLiked) {
-            // Unlike the post
-            await Blog.findByIdAndUpdate(id, {
-                $pull: { likes: userId }
-            });
+            // Unlike: Remove user from likes array
+            blog.likes = blog.likes.filter(id => id.toString() !== userId);
         } else {
-            // Like the post
-            await Blog.findByIdAndUpdate(id, {
-                $addToSet: { likes: userId }
-            });
+            // Like: Add user to likes array
+            blog.likes.push(userId);
         }
 
-        // Get updated likes count
-        const updatedBlog = await Blog.findById(id);
-        const likeCount = updatedBlog.likes.length;
+        // Save changes
+        await blog.save();
 
-        return NextResponse.json({
-            success: true,
+        return successResponse({
+            message: hasLiked ? 'Blog unliked successfully' : 'Blog liked successfully',
             liked: !hasLiked,
-            likeCount
+            likesCount: blog.likes.length
         });
     } catch (error) {
-        console.error('Error toggling like status:', error);
-        return NextResponse.json(
-            { error: 'Failed to update like status' },
-            { status: 500 }
-        );
+        console.error('Error toggling like:', error);
+        return errorResponse('Failed to update like status', 500);
     }
 }

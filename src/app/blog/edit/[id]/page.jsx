@@ -2,8 +2,8 @@ import { getServerSession } from 'next-auth/next';
 import { redirect, notFound } from 'next/navigation';
 import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
-import BlogEditor from '@/components/blog/BlogEditor';
 import BlogForm from '@/components/blog/BlogForm';
+import AuthSessionProvider from '@/components/auth/AuthSessionProvider';
 
 async function getBlog(id, userId) {
     await connectToDatabase();
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }) {
     }
 
     return {
-        title: `Edit: ${blog.title} | ModernBlog`,
+        title: `Edit: ${blog.title} | WritemyBlog`,
     };
 }
 
@@ -52,7 +52,7 @@ export default async function EditBlogPage({ params }) {
     const session = await getServerSession();
 
     if (!session) {
-        redirect('/auth/login?redirect=/blog/edit/' + params.id);
+        redirect('/auth/login?callbackUrl=/blog/edit/' + params.id);
     }
 
     const blog = await getBlog(params.id, session.user.id);
@@ -62,13 +62,15 @@ export default async function EditBlogPage({ params }) {
     }
 
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <h1 className="text-3xl font-bold mb-6">Edit Blog</h1>
 
-            <BlogForm
-                initialData={blog}
-                isEditing={true}
-            />
+            <AuthSessionProvider session={session}>
+                <BlogForm
+                    initialData={blog}
+                    isEditing={true}
+                />
+            </AuthSessionProvider>
         </div>
     );
 }

@@ -1,171 +1,151 @@
-import connectToDatabase from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
+import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
 import User from '@/models/User';
 
-// GET handler for search functionality
+// Helper functions
+function errorResponse(message, status = 500) {
+    return NextResponse.json({ success: false, message }, { status });
+}
+
+function successResponse(data, status = 200) {
+    return NextResponse.json({ success: true, ...data }, { status });
+}
+
 export async function GET(request) {
     try {
-        await connectToDatabase();
-
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q') || '';
-        const type = searchParams.get('type') || 'all'; // all, blogs, users, tags
+        const type = searchParams.get('type') || 'all';
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = parseInt(searchParams.get('limit') || '10', 10);
 
-        // If search query is empty, return empty results
-        if (!query.trim()) {
-            return NextResponse.json({
+        // Validate parameters
+        if (page < 1 || limit < 1 || limit > 50) {
+            return errorResponse('Invalid pagination parameters', 400);
+        }
+
+        // Skip if query is too short
+        if (query.length < 2) {
+            return successResponse({
                 blogs: [],
-                users: [],
                 tags: [],
-                totalResults: 0
+                users: [],
+                pagination: { totalResults: 0, currentPage: page, totalPages: 0, limit }
             });
         }
 
-        let results = {
-            blogs: [],
-            users: [],
-            tags: [],
-            pagination: {
-                page,
-                limit,
-                totalResults: 0,
-                totalPages: 0
-            }
-        };
+        await connectToDatabase();
 
         // Calculate skip value for pagination
         const skip = (page - 1) * limit;
 
-        // Create search regex
-        const searchRegex = new RegExp(query, 'i');
+        // Base search object with privacy filter (only public)
+        const searchBase = { privacy: 'public' };
 
-        // Search based on type
+        // Results placeholder
+        let blogs = [];
+        let tags = [];
+        let users = [];
+        let totalResults = 0;
+
         if (type === 'all' || type === 'blogs') {
-            // Search for blogs
-            const blogQuery = {
+            // Search by title, content, or tags
+            const blogSearch = {
+                ...searchBase,
                 $or: [
-                    { title: { $regex: searchRegex } },
-                    { content: { $regex: searchRegex } },
-                    { tags: { $in: [query] } }
-                ],
-                privacy: 'public'  // Only search public blogs
+                    { title: { $regex: query, $options: 'i' } },
+                    { content: { $regex: query, $options: 'i' } },
+                    { tags: { $in: [new RegExp(query, 'i')] } }
+                ]
             };
 
-            const blogs = await Blog.find(blogQuery)
+            // Get total count
+            const blogsCount = await Blog.countDocuments(blogSearch);
+
+            // Run search query
+            blogs = await Blog.find(blogSearch)
                 .sort({ createdAt: -1 })
-                .skip(type === 'blogs' ? skip : 0)
-                .limit(type === 'blogs' ? limit : 5)  // If searching all, limit to 5 blog results
+                .skip(skip)
+                .limit(limit)
                 .populate('author', 'name username avatar')
                 .lean();
 
-            const totalBlogs = await Blog.countDocuments(blogQuery);
-
-            // Format blogs for response
-            results.blogs = blogs.map(blog => ({
+            // Format blog results
+            blogs = blogs.map(blog => ({
+                ...blog,
                 _id: blog._id.toString(),
-                title: blog.title,
-                slug: blog.slug,
-                content: blog.content.substring(0, 150).replace(/<[^>]*>/g, ''),
-                coverImage: blog.coverImage,
-                tags: blog.tags,
                 author: {
-                    _id: blog.author._id.toString(),
-                    name: blog.author.name,
-                    username: blog.author.username,
-                    avatar: blog.author.avatar
+                    ...blog.author,
+                    _id: blog.author._id.toString()
                 },
-                createdAt: blog.createdAt
+                createdAt: blog.createdAt?.toISOString(),
+                updatedAt: blog.updatedAt?.toISOString()
             }));
 
-            if (type === 'blogs') {
-                results.pagination.totalResults = totalBlogs;
-                results.pagination.totalPages = Math.ceil(totalBlogs / limit);
+            totalResults = blogsCount;
+        }
+
+        if (type === 'all' || type === 'tags') {
+            // Get distinct tags matching query
+            tags = await Blog.distinct('tags', {
+                tags: { $regex: query, $options: 'i' },
+                privacy: 'public'
+            });
+
+            // Limit tags results
+            tags = tags.slice(0, limit);
+
+            if (type === 'tags') {
+                totalResults = tags.length;
             }
         }
 
         if (type === 'all' || type === 'users') {
-            // Search for users
-            const userQuery = {
+            // Search users
+            const userSearch = {
                 $or: [
-                    { name: { $regex: searchRegex } },
-                    { username: { $regex: searchRegex } },
-                    { bio: { $regex: searchRegex } }
+                    { name: { $regex: query, $options: 'i' } },
+                    { username: { $regex: query, $options: 'i' } },
+                    { bio: { $regex: query, $options: 'i' } }
                 ]
             };
 
-            const users = await User.find(userQuery)
-                .sort({ name: 1 })
-                .skip(type === 'users' ? skip : 0)
-                .limit(type === 'users' ? limit : 5)  // If searching all, limit to 5 user results
+            // Get total count
+            const usersCount = await User.countDocuments(userSearch);
+
+            // Run search query
+            users = await User.find(userSearch)
                 .select('name username avatar bio')
+                .skip(skip)
+                .limit(limit)
                 .lean();
 
-            const totalUsers = await User.countDocuments(userQuery);
-
-            // Format users for response
-            results.users = users.map(user => ({
-                _id: user._id.toString(),
-                name: user.name,
-                username: user.username,
-                avatar: user.avatar,
-                bio: user.bio
+            // Format user results
+            users = users.map(user => ({
+                ...user,
+                _id: user._id.toString()
             }));
 
             if (type === 'users') {
-                results.pagination.totalResults = totalUsers;
-                results.pagination.totalPages = Math.ceil(totalUsers / limit);
+                totalResults = usersCount;
             }
         }
 
-        if (type === 'all' || type === 'tags') {
-            // Search for tags
-            const tags = await Blog.aggregate([
-                { $match: { privacy: 'public', tags: { $regex: searchRegex } } },
-                { $unwind: '$tags' },
-                { $match: { tags: { $regex: searchRegex } } },
-                { $group: { _id: '$tags', count: { $sum: 1 } } },
-                { $sort: { count: -1 } },
-                { $limit: type === 'tags' ? limit : 10 }  // If searching all, limit to 10 tag results
-            ]);
-
-            // Format tags for response
-            results.tags = tags.map(tag => ({
-                name: tag._id,
-                count: tag.count
-            }));
-        }
-
-        // If searching for all types, calculate total results
-        if (type === 'all') {
-            results.pagination.totalResults =
-                (await Blog.countDocuments({
-                    $or: [
-                        { title: { $regex: searchRegex } },
-                        { content: { $regex: searchRegex } },
-                        { tags: { $in: [query] } }
-                    ],
-                    privacy: 'public'
-                })) +
-                (await User.countDocuments({
-                    $or: [
-                        { name: { $regex: searchRegex } },
-                        { username: { $regex: searchRegex } },
-                        { bio: { $regex: searchRegex } }
-                    ]
-                }));
-
-            results.pagination.totalPages = Math.ceil(results.pagination.totalResults / limit);
-        }
-
-        return NextResponse.json(results);
+        return successResponse({
+            query,
+            blogs,
+            tags,
+            users,
+            pagination: {
+                totalResults,
+                currentPage: page,
+                totalPages: Math.ceil(totalResults / limit),
+                limit
+            }
+        });
     } catch (error) {
-        console.error('Error performing search:', error);
-        return NextResponse.json(
-            { error: 'Failed to perform search' },
-            { status: 500 }
-        );
+        console.error('Search error:', error);
+        return errorResponse('Failed to search', 500);
     }
 }

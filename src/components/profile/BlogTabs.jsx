@@ -1,215 +1,108 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import BlogList from '@/components/blog/BlogList';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import Link from 'next/link';
+import BlogGrid from '@/components/blog/BlogGrid';
+import { BookOpenIcon, BookmarkIcon, HeartIcon } from '@heroicons/react/24/outline';
 
-export default function BlogTabs({ userId, privacyFilter, isOwnProfile }) {
-    const [activeTab, setActiveTab] = useState('posts');
-    const [blogs, setBlogs] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [privacyFilterExpanded, setPrivacyFilterExpanded] = useState(false);
-    const [selectedPrivacy, setSelectedPrivacy] = useState(isOwnProfile ? 'all' : 'public');
+export default function BlogTabs({ blogs, username, isOwnProfile = false }) {
+    const [activeTab, setActiveTab] = useState('blogs');
 
-    const fetchBlogs = async (reset = false) => {
-        const newPage = reset ? 1 : page;
-        setLoading(true);
-        setError(null);
-
-        try {
-            // Build the query string
-            let queryParams = new URLSearchParams({
-                author: userId,
-                page: newPage,
-                limit: 10,
-            });
-
-            // Add privacy filter if not "all"
-            if (selectedPrivacy !== 'all') {
-                queryParams.append('privacy', selectedPrivacy);
-            }
-
-            // Add more filters based on active tab
-            if (activeTab === 'trending') {
-                queryParams.append('sort', '-likes');
-            }
-
-            // Fetch the blogs
-            const response = await fetch(`/api/blogs?${queryParams}`);
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch blogs');
-            }
-
-            const data = await response.json();
-
-            if (reset) {
-                setBlogs(data.blogs);
-            } else {
-                setBlogs(prev => [...prev, ...data.blogs]);
-            }
-
-            setHasMore(newPage < data.pagination.totalPages);
-            setPage(newPage + 1);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Fetch blogs when tab or privacy filter changes
-    useEffect(() => {
-        fetchBlogs(true);
-    }, [activeTab, selectedPrivacy, userId]);
-
-    const handleLoadMore = () => {
-        fetchBlogs();
-    };
-
-    const handleTabChange = (value) => {
-        setActiveTab(value);
-        setPage(1);
-    };
-
-    const handlePrivacyChange = (privacy) => {
-        setSelectedPrivacy(privacy);
-        setPrivacyFilterExpanded(false);
-    };
-
-    // Get the tab content
-    const renderContent = () => {
-        if (error) {
-            return (
-                <div className="text-center py-10">
-                    <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                    <button
-                        onClick={() => fetchBlogs(true)}
-                        className="btn-secondary"
-                    >
-                        Try Again
-                    </button>
-                </div>
-            );
-        }
-
-        if (blogs.length === 0 && !loading) {
-            return (
-                <div className="text-center py-10">
-                    <p className="text-gray-500 dark:text-gray-400">
-                        {activeTab === 'posts'
-                            ? 'No posts found.'
-                            : activeTab === 'trending'
-                                ? 'No trending posts found.'
-                                : 'No saved posts found.'}
-                    </p>
-                </div>
-            );
-        }
-
-        return (
-            <>
-                <BlogList blogs={blogs} />
-
-                {hasMore && (
-                    <div className="mt-8 text-center">
-                        <button
-                            onClick={handleLoadMore}
-                            disabled={loading}
-                            className="btn-secondary"
-                        >
-                            {loading ? 'Loading...' : 'Load More'}
-                        </button>
-                    </div>
-                )}
-            </>
-        );
-    };
+    const tabs = [
+        {
+            id: 'blogs',
+            label: 'Blogs',
+            icon: <BookOpenIcon className="h-5 w-5 mr-2" />,
+            count: blogs.length,
+            condition: true, // Always show
+        },
+        {
+            id: 'liked',
+            label: 'Liked',
+            icon: <HeartIcon className="h-5 w-5 mr-2" />,
+            count: 0, // This would be retrieved from the API
+            condition: isOwnProfile, // Only show for own profile
+        },
+        {
+            id: 'bookmarked',
+            label: 'Bookmarked',
+            icon: <BookmarkIcon className="h-5 w-5 mr-2" />,
+            count: 0, // This would be retrieved from the API
+            condition: isOwnProfile, // Only show for own profile
+        },
+    ].filter(tab => tab.condition);
 
     return (
         <div>
-            <div className="flex flex-wrap justify-between items-center mb-6">
-                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto">
-                    <TabsList>
-                        <TabsTrigger value="posts">Posts</TabsTrigger>
-                        <TabsTrigger value="trending">Trending</TabsTrigger>
-                        {isOwnProfile && (
-                            <TabsTrigger value="saved">Saved</TabsTrigger>
-                        )}
-                    </TabsList>
-                </Tabs>
-
-                {isOwnProfile && (
-                    <div className="relative mt-4 sm:mt-0">
+            {/* Tab navigation */}
+            <div className="border-b border-gray-200 dark:border-gray-700">
+                <nav className="flex space-x-8" aria-label="Blog tabs">
+                    {tabs.map((tab) => (
                         <button
-                            onClick={() => setPrivacyFilterExpanded(!privacyFilterExpanded)}
-                            className="flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm"
+                            key={tab.id}
+                            className={`
+                flex items-center py-4 px-1 border-b-2 font-medium text-sm 
+                ${activeTab === tab.id
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}
+              `}
+                            onClick={() => setActiveTab(tab.id)}
+                            aria-current={activeTab === tab.id ? 'page' : undefined}
                         >
-                            <span>Show: {selectedPrivacy.charAt(0).toUpperCase() + selectedPrivacy.slice(1)}</span>
-                            <ChevronDownIcon className="ml-2 h-4 w-4" />
+                            {tab.icon}
+                            {tab.label}
+                            <span className="ml-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                                {tab.count}
+                            </span>
                         </button>
-
-                        {privacyFilterExpanded && (
-                            <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700">
-                                <ul>
-                                    <li>
-                                        <button
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                                            onClick={() => handlePrivacyChange('all')}
-                                        >
-                                            All
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                                            onClick={() => handlePrivacyChange('public')}
-                                        >
-                                            Public
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                                            onClick={() => handlePrivacyChange('followers')}
-                                        >
-                                            Followers
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                                            onClick={() => handlePrivacyChange('connections')}
-                                        >
-                                            Connections
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                                            onClick={() => handlePrivacyChange('private')}
-                                        >
-                                            Private
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                )}
+                    ))}
+                </nav>
             </div>
 
-            <div>
-                {loading && blogs.length === 0 ? (
-                    <div className="flex justify-center py-20">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            {/* Tab content */}
+            <div className="mt-6">
+                {activeTab === 'blogs' && (
+                    <>
+                        {blogs.length > 0 ? (
+                            <BlogGrid blogs={blogs} />
+                        ) : (
+                            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No blogs yet</h3>
+                                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                                    {isOwnProfile
+                                        ? "You haven't published any blogs yet."
+                                        : `${username} hasn't published any blogs yet.`}
+                                </p>
+
+                                {isOwnProfile && (
+                                    <Link
+                                        href="/blog/create"
+                                        className="btn-primary"
+                                    >
+                                        Create your first blog
+                                    </Link>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {activeTab === 'liked' && (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Liked blogs</h3>
+                        <p className="text-gray-500 dark:text-gray-400">
+                            Blogs you've liked will appear here.
+                        </p>
                     </div>
-                ) : (
-                    renderContent()
+                )}
+
+                {activeTab === 'bookmarked' && (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Bookmarked blogs</h3>
+                        <p className="text-gray-500 dark:text-gray-400">
+                            Blogs you've bookmarked will appear here.
+                        </p>
+                    </div>
                 )}
             </div>
         </div>

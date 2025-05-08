@@ -1,48 +1,44 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { UserPlusIcon, UserMinusIcon } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
-export default function FollowButton({ profileId, isFollowing: initialIsFollowing = false, onChange }) {
-    const { data: session, status } = useSession();
-    const router = useRouter();
+export default function FollowButton({ userId, initialIsFollowing = false }) {
     const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
     const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
+    const { data: session } = useSession();
 
-    const handleFollow = async () => {
-        if (status !== 'authenticated') {
-            router.push(`/auth/login?redirect=/profile/${profileId}`);
+    const toggleFollow = async () => {
+        // If not logged in, redirect to login
+        if (!session) {
+            router.push(`/auth/login?callbackUrl=/profile/${userId}`);
             return;
         }
 
         setIsLoading(true);
 
         try {
-            const response = await fetch(`/api/followers`, {
-                method: isFollowing ? 'DELETE' : 'POST',
+            const response = await fetch(`/api/users/${userId}/follow`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    followingId: profileId,
-                }),
             });
 
             if (!response.ok) {
                 throw new Error('Failed to update follow status');
             }
 
-            const newFollowState = !isFollowing;
-            setIsFollowing(newFollowState);
+            // Toggle following state
+            setIsFollowing(!isFollowing);
 
-            // Notify parent component about the change
-            if (onChange) {
-                onChange(newFollowState);
-            }
+            // Refresh profile data to update follower counts
+            router.refresh();
         } catch (error) {
-            console.error('Error updating follow status:', error);
+            console.error('Error toggling follow:', error);
         } finally {
             setIsLoading(false);
         }
@@ -50,22 +46,25 @@ export default function FollowButton({ profileId, isFollowing: initialIsFollowin
 
     return (
         <button
-            onClick={handleFollow}
-            disabled={isLoading || status === 'loading' || session?.user?.id === profileId}
-            className={`flex items-center space-x-1 px-4 py-2 rounded-md transition-colors ${isFollowing
-                    ? 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
+            onClick={toggleFollow}
+            disabled={isLoading}
+            className={`
+        flex items-center rounded-full px-4 py-2 font-medium transition
+        ${isFollowing
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'}
+        ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}
+      `}
         >
             {isFollowing ? (
                 <>
-                    <UserMinusIcon className="h-5 w-5" />
-                    <span>{isLoading ? 'Updating...' : 'Unfollow'}</span>
+                    <UserMinusIcon className="h-5 w-5 mr-1" />
+                    <span>Following</span>
                 </>
             ) : (
                 <>
-                    <UserPlusIcon className="h-5 w-5" />
-                    <span>{isLoading ? 'Updating...' : 'Follow'}</span>
+                    <UserPlusIcon className="h-5 w-5 mr-1" />
+                    <span>Follow</span>
                 </>
             )}
         </button>

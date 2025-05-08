@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import BlogEditor from './BlogEditor';
@@ -12,10 +12,9 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024;
 // Allowed image types
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-export default function BlogForm({ initialData = null }) {
+export default function BlogForm({ initialData = null, isEditing = false }) {
     const router = useRouter();
     const { data: session } = useSession();
-    const editing = !!initialData;
 
     const [formData, setFormData] = useState({
         title: initialData?.title || '',
@@ -32,15 +31,18 @@ export default function BlogForm({ initialData = null }) {
     const [tagInput, setTagInput] = useState('');
     const [imageError, setImageError] = useState('');
 
+    // Handle form field changes
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Handle rich text editor content changes
     const handleEditorChange = (content) => {
         setFormData(prev => ({ ...prev, content }));
     };
 
+    // Handle cover image upload
     const handleCoverImageChange = (e) => {
         const file = e.target.files[0];
         setImageError('');
@@ -72,12 +74,14 @@ export default function BlogForm({ initialData = null }) {
         reader.readAsDataURL(file);
     };
 
+    // Remove cover image
     const removeCoverImage = () => {
         setCoverImagePreview('');
         setFormData(prev => ({ ...prev, coverImage: '' }));
         setImageError('');
     };
 
+    // Add a tag to the blog post
     const handleAddTag = (e) => {
         e.preventDefault();
         if (!tagInput.trim()) return;
@@ -102,6 +106,7 @@ export default function BlogForm({ initialData = null }) {
         setTagInput('');
     };
 
+    // Remove a tag from the blog post
     const removeTag = (indexToRemove) => {
         setFormData(prev => ({
             ...prev,
@@ -109,6 +114,7 @@ export default function BlogForm({ initialData = null }) {
         }));
     };
 
+    // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -130,11 +136,11 @@ export default function BlogForm({ initialData = null }) {
             }
 
             // Prepare the request
-            const url = editing
+            const url = isEditing
                 ? `/api/blogs/${initialData._id}`
                 : '/api/blogs';
 
-            const method = editing ? 'PUT' : 'POST';
+            const method = isEditing ? 'PUT' : 'POST';
 
             // Send the request
             const response = await fetch(url, {
@@ -154,7 +160,7 @@ export default function BlogForm({ initialData = null }) {
             const data = await response.json();
 
             // Handle success
-            if (editing) {
+            if (isEditing) {
                 setSuccess('Blog updated successfully!');
                 setTimeout(() => {
                     router.push(`/blog/${data.blog._id}`);
@@ -196,7 +202,7 @@ export default function BlogForm({ initialData = null }) {
                     onChange={handleChange}
                     required
                     placeholder="Enter a descriptive title"
-                    className="input text-xl"
+                    className="input text-xl w-full"
                 />
             </div>
 
@@ -303,7 +309,7 @@ export default function BlogForm({ initialData = null }) {
                                 id="tag-input"
                                 value={tagInput}
                                 onChange={(e) => setTagInput(e.target.value)}
-                                className="input pl-10"
+                                className="input pl-10 w-full"
                                 placeholder="Add a tag and press Enter"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
@@ -446,7 +452,7 @@ export default function BlogForm({ initialData = null }) {
                     className="btn-primary"
                     disabled={isSubmitting}
                 >
-                    {isSubmitting ? 'Saving...' : editing ? 'Update Blog' : 'Publish Blog'}
+                    {isSubmitting ? 'Saving...' : isEditing ? 'Update Blog' : 'Publish Blog'}
                 </button>
             </div>
         </form>

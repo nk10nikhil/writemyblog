@@ -4,8 +4,8 @@ import BlogForm from '@/components/blog/BlogForm';
 import AuthSessionProvider from '@/components/auth/AuthSessionProvider';
 
 export const metadata = {
-    title: 'Create Blog Post | ModernBlog',
-    description: 'Create a new blog post on ModernBlog',
+    title: 'Create Blog Post | WritemyBlog',
+    description: 'Create a new blog post on WritemyBlog',
 };
 
 export default async function CreateBlogPage() {

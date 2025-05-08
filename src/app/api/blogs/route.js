@@ -335,73 +335,58 @@ export async function GET(request) {
 // Create blog
 export async function POST(request) {
     try {
-        // Get user session
+        // Verify user authentication
         const session = await getServerSession();
-
-        // Check authentication
-        if (!session || !session.user?.id) {
-            return errorResponse('Authentication required', 401);
+        if (!session) {
+            return NextResponse.json(
+                { success: false, message: 'Authentication required' },
+                { status: 401 }
+            );
         }
 
-        // Parse request body
-        const body = await request.json();
-        const { title, content, coverImage, privacy, tags } = body;
-
-        // Enhanced validation
-        const validationErrors = [];
-
-        if (!title || title.trim().length < 3) {
-            validationErrors.push('Title must be at least 3 characters long');
-        }
-
-        if (!content || content.trim() === '' || content === '<p><br></p>') {
-            validationErrors.push('Content is required');
-        }
-
-        if (tags && (!Array.isArray(tags) || tags.length > 5)) {
-            validationErrors.push('Tags must be an array with maximum 5 items');
-        }
-
-        if (privacy && !['public', 'private', 'followers', 'connections'].includes(privacy)) {
-            validationErrors.push('Invalid privacy setting');
-        }
-
-        if (validationErrors.length > 0) {
-            return errorResponse('Validation failed', 400, { validationErrors });
-        }
-
-        // Connect to DB
+        // Connect to database
         await connectToDatabase();
 
-        // Create blog (slug will be generated automatically by the model's pre-save hook)
-        const blog = new Blog({
-            title,
-            content,
-            coverImage,
-            privacy: privacy || 'public',
-            tags: tags || [],
-            author: session.user.id,
-        });
+        // Parse request body
+        const data = await request.json();
 
-        await blog.save();
-
-        // Populate author details
-        await blog.populate('author', 'name username avatar');
-
-        return successResponse({
-            message: 'Blog created successfully',
-            blog: JSON.parse(JSON.stringify(blog))
-        }, 201);
-    } catch (error) {
-        console.error('Error creating blog:', error);
-
-        // Handle duplicate slug error
-        if (error.code === 11000 && error.keyPattern?.slug) {
-            return errorResponse('A blog with this title already exists. Please use a different title.', 409);
+        // Validate required fields
+        if (!data.title || !data.content) {
+            return NextResponse.json(
+                { success: false, message: 'Title and content are required' },
+                { status: 400 }
+            );
         }
 
-        return errorResponse('Failed to create blog', 500, {
-            error: error.message
+        // Create new blog post
+        const newBlog = new Blog({
+            title: data.title,
+            content: data.content,
+            author: session.user.id,
+            tags: data.tags || [],
+            privacy: data.privacy || 'public',
+            coverImage: data.coverImage || '',
         });
+
+        // Save blog to database
+        await newBlog.save();
+
+        // Convert MongoDB _id to string
+        const blogToReturn = {
+            ...newBlog.toObject(),
+            _id: newBlog._id.toString(),
+            author: newBlog.author.toString()
+        };
+
+        return NextResponse.json(
+            { success: true, message: 'Blog created successfully', blog: blogToReturn },
+            { status: 201 }
+        );
+    } catch (error) {
+        console.error('Error creating blog:', error);
+        return NextResponse.json(
+            { success: false, message: error.message || 'Failed to create blog' },
+            { status: 500 }
+        );
     }
 }
