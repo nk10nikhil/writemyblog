@@ -3,16 +3,9 @@ import mongoose from 'mongoose';
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'writemyblog';
 
-// Create a development mode flag - this helps us handle missing DB connections in development
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-// In development, we'll provide a warning but not throw hard errors when MongoDB isn't configured
+// Always require a MongoDB connection regardless of environment
 if (!MONGODB_URI) {
-    if (isDevelopment) {
-        console.warn('MongoDB URI not defined in environment variables. Using mock data in development mode.');
-    } else {
-        throw new Error('Please define the MONGODB_URI environment variable');
-    }
+    throw new Error('Please define the MONGODB_URI environment variable');
 }
 
 // Define type for global mongoose cache
@@ -39,12 +32,6 @@ async function connectToDatabase() {
     // If we've already connected, return the existing connection
     if (cached.conn) {
         return cached.conn;
-    }
-
-    // If no MongoDB URI is provided and we're in development, use mock data approach
-    if (!MONGODB_URI && isDevelopment) {
-        console.warn('Skipping MongoDB connection in development mode - mock data will be used');
-        return null;
     }
 
     // Define MongoDB connection options
@@ -77,12 +64,6 @@ async function connectToDatabase() {
             .catch((err) => {
                 console.error('MongoDB connection error:', err);
                 clearTimeout(connectionTimeout);
-
-                if (isDevelopment) {
-                    console.warn('Failed to connect to MongoDB. Using mock data in development mode.');
-                    return null as unknown as typeof mongoose; // Cast null to mongoose type to satisfy TypeScript
-                }
-
                 throw err;
             });
     }
@@ -91,12 +72,6 @@ async function connectToDatabase() {
         cached.conn = await cached.promise;
     } catch (e) {
         cached.promise = null;
-
-        if (isDevelopment) {
-            console.warn('Error establishing MongoDB connection. Using mock data in development mode.');
-            return null;
-        }
-
         console.error('Failed to connect to MongoDB:', e);
         throw new Error(`Unable to connect to MongoDB: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
