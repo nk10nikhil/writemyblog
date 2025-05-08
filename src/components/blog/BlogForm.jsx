@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import BlogEditor from './BlogEditor';
@@ -31,21 +31,6 @@ export default function BlogForm({ initialData = null }) {
     const [coverImagePreview, setCoverImagePreview] = useState(initialData?.coverImage || '');
     const [tagInput, setTagInput] = useState('');
     const [imageError, setImageError] = useState('');
-
-    // Check for authentication
-    useEffect(() => {
-        if (!session && typeof window !== 'undefined') {
-            router.push('/auth/login?callbackUrl=/blog/create');
-        }
-    }, [session, router]);
-
-    if (!session) {
-        return (
-            <div className="text-center py-12">
-                <p className="text-lg text-gray-600 dark:text-gray-400">Please log in to create a blog post.</p>
-            </div>
-        );
-    }
 
     const handleChange = (e) => {
         const { name, value } = e.target;
