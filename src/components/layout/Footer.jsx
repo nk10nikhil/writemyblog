@@ -16,7 +16,7 @@ export default function Footer() {
                         <Link href="/" className="flex items-center space-x-2">
                             <div className="relative h-8 w-8">
                                 <Image
-                                    src={theme === 'dark' ? '/images/logo-light.svg' : '/images/logo-dark.svg'}
+                                    src={theme === 'dark' ? '/favicon.ico' : '/favicon.ico'}
                                     alt="ModernBlog Logo"
                                     fill
                                     className="object-contain"

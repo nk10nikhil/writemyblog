@@ -66,13 +66,12 @@ export default function Header() {
                     <Link href="/" className="flex items-center space-x-2">
                         <div className="relative h-8 w-8" style={{ position: 'relative' }}>
                             <Image
-                                src={theme === 'dark' ? '/images/logo-light.svg' : '/images/logo-dark.svg'}
-                                alt="ModernBlog Logo"
+                                src={theme === 'dark' ? '/favicon.ico' : '/favicon.ico'}
                                 fill
                                 className="object-contain"
                             />
                         </div>
-                        <span className="text-xl font-bold">ModernBlog</span>
+                        <span className="text-xl font-bold">WriteMyBlog</span>
                     </Link>
 
                     {/* Desktop Navigation */}
