@@ -68,15 +68,8 @@ const MOCK_FEATURED_BLOGS = [
 
 export async function GET() {
     try {
-        const db = await connectToDatabase();
-
-        // If we couldn't connect to DB and we're in development, use mock data
-        if (!db && process.env.NODE_ENV === 'development') {
-            console.log('Using mock featured blogs data');
-            return NextResponse.json({
-                blogs: MOCK_FEATURED_BLOGS
-            });
-        }
+        // Make sure to properly await the database connection
+        await connectToDatabase();
 
         // Get featured blogs - using a combination of likes, comments, and recency
         const featuredBlogs = await Blog.find({ privacy: 'public' })
@@ -98,6 +91,7 @@ export async function GET() {
         }));
 
         return NextResponse.json({
+            success: true,
             blogs: formattedBlogs
         });
     } catch (error) {
@@ -107,12 +101,18 @@ export async function GET() {
         if (process.env.NODE_ENV === 'development') {
             console.log('Error occurred, using mock featured blogs data');
             return NextResponse.json({
+                success: false,
+                message: 'Using mock data due to database error',
                 blogs: MOCK_FEATURED_BLOGS
             });
         }
 
         return NextResponse.json(
-            { message: 'Failed to fetch featured blogs' },
+            {
+                success: false,
+                message: 'Failed to fetch featured blogs',
+                blogs: [] // Return empty array to avoid breaking UI
+            },
             { status: 500 }
         );
     }

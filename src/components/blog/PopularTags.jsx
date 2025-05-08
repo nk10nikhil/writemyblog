@@ -15,18 +15,21 @@ export default function PopularTags({ limit = 10 }) {
             setError('');
 
             try {
-                const response = await fetch(`/api/tags/popular?limit=${limit}`);
+                // Add timestamp to prevent caching issues
+                const response = await fetch(`/api/tags/popular?limit=${limit}&t=${Date.now()}`);
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch popular tags');
                 }
 
                 const result = await response.json();
-                // Handle the correct API response format (data.data instead of data.tags)
+                // We updated the API to always return data array, even if empty
                 setTags(result.data || []);
             } catch (error) {
                 console.error('Error fetching popular tags:', error);
                 setError(error.message);
+                // Set empty tags array to prevent UI issues
+                setTags([]);
             } finally {
                 setLoading(false);
             }

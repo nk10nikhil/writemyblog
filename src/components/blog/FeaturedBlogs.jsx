@@ -16,7 +16,8 @@ export default function FeaturedBlogs() {
                 // Add a small timeout to prevent race conditions
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                const response = await fetch('/api/blogs/featured', {
+                // Add a timestamp to prevent caching issues
+                const response = await fetch(`/api/blogs/featured?t=${Date.now()}`, {
                     // Add cache control to prevent stale data
                     cache: 'no-store'
                 });
@@ -30,7 +31,7 @@ export default function FeaturedBlogs() {
             } catch (err) {
                 console.error('Error fetching featured blogs:', err);
                 setError(err.message);
-                // Return empty array instead of maintaining error state
+                // Always set blogs to an empty array to prevent UI issues
                 setBlogs([]);
             } finally {
                 setLoading(false);

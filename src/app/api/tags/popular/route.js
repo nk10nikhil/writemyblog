@@ -4,7 +4,7 @@ import connectToDatabase from '@/lib/mongodb';
 
 export async function GET(request) {
     try {
-        // Connect to the database
+        // Connect to the database - make sure to await the connection
         await connectToDatabase();
 
         // Get query parameter for limit (default to 10 if not provided)
@@ -40,13 +40,21 @@ export async function GET(request) {
 
         return NextResponse.json({
             success: true,
-            data: tagAggregation
+            data: tagAggregation || [] // Ensure we always return an array
         });
 
     } catch (error) {
         console.error('Error fetching popular tags:', error);
+
+        // Return an empty array with error details in development
+        // Or just empty array in production to avoid breaking the UI
         return NextResponse.json(
-            { success: false, message: 'Failed to fetch popular tags', error: error.message },
+            {
+                success: false,
+                message: 'Failed to fetch popular tags',
+                data: [], // Return empty array so UI can handle it gracefully
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            },
             { status: 500 }
         );
     }
