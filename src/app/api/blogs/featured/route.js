@@ -73,7 +73,12 @@ export async function GET() {
 
         // Get featured blogs - using a combination of likes, comments, and recency
         const featuredBlogs = await Blog.find({ privacy: 'public' })
-            .sort({ likesCount: -1, commentCount: -1, createdAt: -1 })
+            .sort({
+                featured: -1,  // Featured blogs first
+                likes: -1,     // Then by number of likes (array length)
+                viewCount: -1, // Then by view count
+                createdAt: -1  // Then by recency
+            })
             .limit(6)
             .populate('author', 'name username avatar')
             .lean();
@@ -86,6 +91,7 @@ export async function GET() {
                 ...blog.author,
                 _id: blog.author._id.toString()
             },
+            likesCount: blog.likes ? blog.likes.length : 0,
             createdAt: blog.createdAt.toISOString(),
             updatedAt: blog.updatedAt.toISOString(),
         }));
