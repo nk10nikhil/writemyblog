@@ -202,8 +202,8 @@ export async function withTransaction<T>(
     }
 }
 
-// Export models and functions
-export default {
+// Create a named export object to avoid ESLint warning
+const dbUtils = {
     getModels,
 
     // Blog operations
@@ -240,3 +240,5 @@ export default {
     // Transaction support
     withTransaction
 };
+
+export default dbUtils;

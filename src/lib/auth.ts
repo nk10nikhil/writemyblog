@@ -2,6 +2,20 @@ import { getServerSession } from 'next-auth/next';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+// Removed unused Session import; we only need the type declaration
+
+// Extend the Session type to include the id property
+declare module 'next-auth' {
+    interface Session {
+        user: {
+            id?: string;
+            name?: string | null;
+            email?: string | null;
+            image?: string | null;
+            role?: string;
+        }
+    }
+}
 
 // Configure session and secret for NextAuth
 export const authConfig = {
@@ -144,6 +158,10 @@ export async function getCurrentUser() {
         };
     } catch (error) {
         console.error('Error getting current user:', error);
-        return { user: null, error: error.message };
+        // Fix for TypeScript error - checking if error is an Error object with message property
+        return {
+            user: null,
+            error: error instanceof Error ? error.message : 'Unknown error occurred'
+        };
     }
 }

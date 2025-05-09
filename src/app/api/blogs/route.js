@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth/next';
 import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
 import slugify from 'slugify';
-import { getCurrentUser } from '@/lib/auth';
 import User from '@/models/User'; // Import User model
 
 // Standardized error response function
