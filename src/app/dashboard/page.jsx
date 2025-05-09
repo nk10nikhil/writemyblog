@@ -32,25 +32,31 @@ async function getDashboardData(userId) {
         ],
     });
 
-    // Get recent blogs
+    // Fetch all blogs for analytics
+    const allBlogs = await Blog.find({ author: userId }).lean();
+    const totalViews = allBlogs.reduce((sum, blog) => sum + (blog.viewCount || 0), 0);
+    const totalLikes = allBlogs.reduce((sum, blog) => sum + (blog.likes?.length || 0), 0);
+    // Count total comments across all blogs
+    const allBlogIds = allBlogs.map(blog => blog._id);
+    const totalComments = await Comment.countDocuments({ blog: { $in: allBlogIds } });
+
+    // Get recent blogs (limit 5)
     const recentBlogs = await Blog.find({ author: userId })
         .sort({ createdAt: -1 })
         .limit(5)
         .lean();
-
     const formattedBlogs = recentBlogs.map(blog => ({
         ...blog,
         _id: blog._id.toString(),
     }));
 
     // Get recent activity (comments on user's blogs)
-    const recentComments = await Comment.find({ blog: { $in: recentBlogs.map(blog => blog._id) } })
+    const recentComments = await Comment.find({ blog: { $in: allBlogIds } })
         .populate('author', 'name username avatar')
         .populate('blog', 'title')
         .sort({ createdAt: -1 })
         .limit(5)
         .lean();
-
     const formattedComments = recentComments.map(comment => ({
         ...comment,
         _id: comment._id.toString(),
@@ -64,7 +70,7 @@ async function getDashboardData(userId) {
         },
     }));
 
-    // Add comment count to each blog
+    // Add comment count to each recent blog
     for (const blog of formattedBlogs) {
         blog.commentCount = await Comment.countDocuments({ blog: blog._id });
     }
@@ -75,6 +81,9 @@ async function getDashboardData(userId) {
             followers: followerCount,
             following: followingCount,
             connections: connectionCount,
+            totalViews,
+            totalLikes,
+            totalComments,
         },
         recentBlogs: formattedBlogs,
         activity: formattedComments,
@@ -145,13 +154,19 @@ export default async function Dashboard() {
                                             <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">Total Views</p>
                                                 <p className="text-2xl font-bold">
-                                                    {data.recentBlogs.reduce((sum, blog) => sum + (blog.viewCount || 0), 0)}
+                                                    {data.stats.totalViews}
                                                 </p>
                                             </div>
                                             <div className="text-center p-3 bg-pink-50 dark:bg-pink-900/20 rounded-md">
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">Total Likes</p>
                                                 <p className="text-2xl font-bold">
-                                                    {data.recentBlogs.reduce((sum, blog) => sum + (blog.likes?.length || 0), 0)}
+                                                    {data.stats.totalLikes}
+                                                </p>
+                                            </div>
+                                            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">Total Comments</p>
+                                                <p className="text-2xl font-bold">
+                                                    {data.stats.totalComments}
                                                 </p>
                                             </div>
                                         </div>
