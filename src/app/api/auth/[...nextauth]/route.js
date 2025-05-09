@@ -1,13 +1,10 @@
-import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import connectToDatabase from '@/lib/mongodb';
-import User from '@/models/User';
-
-// Define the nextauth configuration separately
-const authOptions = {
+// Define the authOptions configuration separately
+const getAuthOptions = () => ({
     providers: [
-        CredentialsProvider({
+        {
+            id: 'credentials',
             name: 'Credentials',
+            type: 'credentials',
             credentials: {
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" }
@@ -18,6 +15,11 @@ const authOptions = {
                 }
 
                 try {
+                    // Import these dynamically to avoid execution during build
+                    const connectToDatabase = (await import('@/lib/mongodb')).default;
+                    const User = (await import('@/models/User')).default;
+                    const bcrypt = await import('bcryptjs');
+
                     await connectToDatabase();
                     const user = await User.findOne({ email: credentials.email });
 
@@ -25,29 +27,32 @@ const authOptions = {
                         return null;
                     }
 
-                    const isValid = await user.comparePassword(credentials.password);
+                    const isPasswordValid = await bcrypt.compare(
+                        credentials.password,
+                        user.password
+                    );
 
-                    if (!isValid) {
+                    if (!isPasswordValid) {
                         return null;
                     }
 
                     return {
                         id: user._id.toString(),
-                        name: user.name,
                         email: user.email,
+                        name: user.name,
                         username: user.username,
                         avatar: user.avatar,
-                        role: user.role,
+                        role: user.role
                     };
                 } catch (error) {
-                    console.error("Auth error:", error);
+                    console.error("Authentication error:", error);
                     return null;
                 }
             }
-        })
+        }
     ],
     callbacks: {
-        jwt({ token, user }) {
+        async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
                 token.username = user.username;
@@ -56,7 +61,7 @@ const authOptions = {
             }
             return token;
         },
-        session({ session, token }) {
+        async session({ session, token }) {
             if (session.user) {
                 session.user.id = token.id;
                 session.user.username = token.username;
@@ -70,16 +75,23 @@ const authOptions = {
         signIn: '/auth/login',
         error: '/auth/login',
     },
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.NEXTAUTH_SECRET || "fallback-secret-for-development-only",
     session: {
         strategy: 'jwt',
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
     debug: process.env.NODE_ENV === 'development',
-};
+});
 
-// Create the handler function 
-const handler = NextAuth(authOptions);
+// Use dynamic imports for NextAuth to prevent the code from being executed during build
+export async function GET(req) {
+    const { NextAuth } = await import('next-auth');
+    const handler = await NextAuth(getAuthOptions());
+    return handler(req);
+}
 
-// Export the handler function for GET and POST requests
-export { handler as GET, handler as POST };
+export async function POST(req) {
+    const { NextAuth } = await import('next-auth');
+    const handler = await NextAuth(getAuthOptions());
+    return handler(req);
+}
