@@ -6,130 +6,6 @@ import slugify from 'slugify';
 import { getCurrentUser } from '@/lib/auth';
 import User from '@/models/User'; // Import User model
 
-// Mock data for development when MongoDB isn't available
-const MOCK_BLOGS = [
-    {
-        _id: '1',
-        title: 'Getting Started with Next.js',
-        slug: 'getting-started-with-nextjs',
-        content: '<p>Next.js is a powerful React framework that makes building modern web applications easier...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['nextjs', 'react', 'javascript'],
-        author: {
-            _id: '101',
-            name: 'Jane Smith',
-            username: 'janesmith',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user1', 'user2', 'user3'],
-        featured: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 5
-    },
-    {
-        _id: '2',
-        title: 'Mastering Tailwind CSS',
-        slug: 'mastering-tailwind-css',
-        content: '<p>Tailwind CSS is a utility-first CSS framework that allows you to build custom designs without leaving your HTML...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['css', 'tailwind', 'frontend'],
-        author: {
-            _id: '102',
-            name: 'John Doe',
-            username: 'johndoe',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user1', 'user2'],
-        featured: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 3
-    },
-    {
-        _id: '3',
-        title: 'The Power of TypeScript',
-        slug: 'power-of-typescript',
-        content: '<p>TypeScript adds static type definitions to JavaScript, making your code more robust and maintainable...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['typescript', 'javascript', 'webdev'],
-        author: {
-            _id: '103',
-            name: 'Alex Johnson',
-            username: 'alexj',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user1', 'user3', 'user4'],
-        featured: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 7
-    },
-    {
-        _id: '4',
-        title: 'Modern React Hooks',
-        slug: 'modern-react-hooks',
-        content: '<p>React Hooks have revolutionized how we write React components...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['react', 'hooks', 'javascript'],
-        author: {
-            _id: '102',
-            name: 'John Doe',
-            username: 'johndoe',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user2', 'user5'],
-        featured: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 2
-    },
-    {
-        _id: '5',
-        title: 'Introduction to MongoDB',
-        slug: 'introduction-to-mongodb',
-        content: '<p>MongoDB is a popular NoSQL database that provides high performance and scalability...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['mongodb', 'database', 'backend'],
-        author: {
-            _id: '101',
-            name: 'Jane Smith',
-            username: 'janesmith',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user1', 'user3'],
-        featured: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 1
-    },
-    {
-        _id: '6',
-        title: 'API Development with Node.js',
-        slug: 'api-development-with-nodejs',
-        content: '<p>Node.js is an excellent platform for building fast and scalable APIs...</p>',
-        coverImage: '/images/placeholder-blog.jpg',
-        privacy: 'public',
-        tags: ['nodejs', 'api', 'backend', 'javascript'],
-        author: {
-            _id: '103',
-            name: 'Alex Johnson',
-            username: 'alexj',
-            avatar: '/images/placeholder-blog.jpg'
-        },
-        likes: ['user2', 'user4', 'user5'],
-        featured: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        commentCount: 4
-    }
-];
-
 // Standardized error response function
 function errorResponse(message, status = 500, additionalData = {}) {
     console.error(`API Error (${status}): ${message}`);
@@ -171,38 +47,8 @@ export async function GET(request) {
         }
 
         const db = await connectToDatabase();
-
-        // If we couldn't connect to DB and we're in development, use mock data
-        if (!db && process.env.NODE_ENV === 'development') {
-            console.log('Using mock blogs data');
-
-            // Filter mock data based on search params
-            let filteredBlogs = [...MOCK_BLOGS];
-
-            // Filter by author if provided
-            if (author) {
-                filteredBlogs = filteredBlogs.filter(blog => blog.author._id === author);
-            }
-
-            // Filter by tag if provided
-            if (tag) {
-                filteredBlogs = filteredBlogs.filter(blog => blog.tags.includes(tag));
-            }
-
-            // Handle pagination
-            const startIndex = (page - 1) * limit;
-            const endIndex = page * limit;
-            const paginatedBlogs = filteredBlogs.slice(startIndex, endIndex);
-
-            return successResponse({
-                blogs: paginatedBlogs,
-                pagination: {
-                    totalBlogs: filteredBlogs.length,
-                    totalPages: Math.ceil(filteredBlogs.length / limit),
-                    currentPage: page,
-                    limit
-                }
-            });
+        if (!db) {
+            return errorResponse('Database connection failed', 500);
         }
 
         // Get user session
@@ -314,21 +160,6 @@ export async function GET(request) {
         });
     } catch (error) {
         console.error('Error getting blogs:', error);
-
-        // In development mode, return mock data as fallback
-        if (process.env.NODE_ENV === 'development') {
-            console.log('Error occurred, using mock blogs data');
-            return successResponse({
-                blogs: MOCK_BLOGS,
-                pagination: {
-                    totalBlogs: MOCK_BLOGS.length,
-                    totalPages: Math.ceil(MOCK_BLOGS.length / 10),
-                    currentPage: 1,
-                    limit: 10,
-                }
-            });
-        }
-
         return errorResponse('Failed to fetch blogs', 500, {
             error: error.message
         });

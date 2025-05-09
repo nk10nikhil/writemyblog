@@ -1,19 +1,12 @@
 'use client';
-
+import { HeartIcon, ShareIcon, BookmarkIcon, EllipsisHorizontalIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid, BookmarkIcon as BookmarkIconSolid } from '@heroicons/react/24/solid';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import {
-    HeartIcon,
-    ShareIcon,
-    BookmarkIcon,
-    DotsHorizontalIcon,
-    PencilAltIcon,
-    TrashIcon
-} from '@heroicons/react/outline';
-import { HeartIcon as HeartIconSolid } from '@heroicons/react/solid';
-import { BookmarkIcon as BookmarkIconSolid } from '@heroicons/react/solid';
+
+console.log({ HeartIcon, ShareIcon, BookmarkIcon, EllipsisHorizontalIcon, PencilIcon, TrashIcon, HeartIconSolid, BookmarkIconSolid });
 
 export default function BlogActions({ blog }) {
     const { data: session } = useSession();
@@ -142,8 +135,8 @@ export default function BlogActions({ blog }) {
                 <button
                     onClick={handleLike}
                     className={`flex items-center space-x-1 ${liked
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-gray-700 dark:text-gray-300'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-700 dark:text-gray-300'
                         }`}
                 >
                     {liked ? (
@@ -196,8 +189,8 @@ export default function BlogActions({ blog }) {
                 <button
                     onClick={handleSave}
                     className={`flex items-center space-x-1 ${saved
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-700 dark:text-gray-300'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-700 dark:text-gray-300'
                         }`}
                 >
                     {saved ? (
@@ -215,7 +208,7 @@ export default function BlogActions({ blog }) {
                         onClick={() => setShowMenu(!showMenu)}
                         className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
-                        <DotsHorizontalIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                        <EllipsisHorizontalIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </button>
 
                     {showMenu && (
@@ -224,7 +217,7 @@ export default function BlogActions({ blog }) {
                                 href={`/blog/${blog._id}/edit`}
                                 className="flex items-center px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                             >
-                                <PencilAltIcon className="h-5 w-5 mr-2" />
+                                <PencilIcon className="h-5 w-5 mr-2" />
                                 Edit blog
                             </Link>
                             <button

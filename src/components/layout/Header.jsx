@@ -65,11 +65,7 @@ export default function Header() {
                     {/* Logo */}
                     <Link href="/" className="flex items-center space-x-2">
                         <div className="relative h-8 w-8" style={{ position: 'relative' }}>
-                            <Image
-                                src={theme === 'dark' ? '/favicon.ico' : '/favicon.ico'}
-                                fill
-                                className="object-contain"
-                            />
+                            <img src="user.jpg" />
                         </div>
                         <span className="text-xl font-bold">WriteMyBlog</span>
                     </Link>
@@ -109,12 +105,7 @@ export default function Header() {
                                     className="flex items-center space-x-2 focus:outline-none"
                                 >
                                     <div className="relative h-8 w-8 rounded-full overflow-hidden" style={{ position: 'relative' }}>
-                                        <Image
-                                            src={session.user.avatar || '/images/default-avatar.png'}
-                                            alt={session.user.name}
-                                            fill
-                                            className="object-cover"
-                                        />
+                                        <img src="user.jpg" />
                                     </div>
                                     <span className="hidden lg:inline-block font-medium">{session.user.name}</span>
                                 </button>
@@ -223,12 +214,7 @@ export default function Header() {
                                 <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center space-x-3 p-2">
                                         <div className="relative h-8 w-8 rounded-full overflow-hidden" style={{ position: 'relative' }}>
-                                            <Image
-                                                src={session.user.avatar || '/images/default-avatar.png'}
-                                                alt={session.user.name}
-                                                fill
-                                                className="object-cover"
-                                            />
+                                            <img src="user.jpg" />
                                         </div>
                                         <span className="font-medium">{session.user.name}</span>
                                     </div>
