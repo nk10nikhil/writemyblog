@@ -65,7 +65,7 @@ export default function Header() {
                     {/* Logo */}
                     <Link href="/" className="flex items-center space-x-2">
                         <div className="relative h-8 w-8" style={{ position: 'relative' }}>
-                            <img src="user.jpg" />
+                            <img src="favicon.ico" />
                         </div>
                         <span className="text-xl font-bold">WriteMyBlog</span>
                     </Link>
