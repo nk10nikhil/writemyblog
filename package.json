@@ -13,8 +13,8 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@heroicons/react": "^2.2.0",
-    "@mantine/core": "^8.0.0",
-    "@mantine/hooks": "^8.0.0",
+    "@mantine/core": "^5.10.5",
+    "@mantine/hooks": "^5.10.5",
     "@mantine/rte": "^5.10.5",
     "@tailwindcss/typography": "^0.5.16",
     "@tiptap/extension-link": "^2.12.0",
