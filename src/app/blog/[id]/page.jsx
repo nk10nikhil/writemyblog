@@ -15,7 +15,9 @@ import BlogTags from '@/components/blog/BlogTags';
 import RelatedBlogs from '@/components/blog/RelatedBlogs';
 
 export async function generateMetadata({ params }) {
-    const { id } = params;
+    // Await the params object to get access to its properties
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
 
     try {
         await connectToDatabase();
@@ -35,6 +37,7 @@ export async function generateMetadata({ params }) {
                 description: blog.content.substring(0, 200).replace(/<[^>]*>/g, ''),
                 images: blog.coverImage ? [{ url: blog.coverImage }] : [],
             },
+            metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
         };
     } catch (error) {
         console.error('Error generating metadata:', error);
@@ -120,7 +123,9 @@ async function checkBlogAccess(blog, userId) {
 
 export default async function BlogPage({ params }) {
     const session = await getServerSession();
-    const { id } = params;
+    // Await the params object to get access to its properties
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
 
     await connectToDatabase();
 
@@ -239,10 +244,10 @@ export default async function BlogPage({ params }) {
                         {blog.privacy !== 'public' && (
                             <div className="mb-4">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${blog.privacy === 'private'
-                                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                        : blog.privacy === 'connections'
-                                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                    : blog.privacy === 'connections'
+                                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                                     }`}>
                                     {blog.privacy === 'private'
                                         ? 'Private'

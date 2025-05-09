@@ -41,6 +41,9 @@ export default function LoginForm() {
         setError('');
 
         try {
+            console.log('Attempting login with email:', formData.email);
+
+            // Sign in with credentials
             const result = await signIn('credentials', {
                 redirect: false,
                 email: formData.email,
@@ -51,11 +54,18 @@ export default function LoginForm() {
                 throw new Error(result.error);
             }
 
-            router.push(callbackUrl);
-            router.refresh();
+            console.log('Login successful, refreshing session');
+
+            // Force a session refresh to ensure the user ID is properly loaded
+            // We'll use a small delay to ensure NextAuth has time to establish the session
+            setTimeout(() => {
+                console.log('Redirecting to:', callbackUrl);
+                router.push(callbackUrl);
+                // Force a full refresh to ensure new session is loaded
+                window.location.href = callbackUrl;
+            }, 800);
         } catch (err) {
             setError(err.message);
-        } finally {
             setIsSubmitting(false);
         }
     };

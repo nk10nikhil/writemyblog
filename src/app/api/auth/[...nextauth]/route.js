@@ -30,8 +30,18 @@ const handler = NextAuth({
                     throw new Error('Invalid password');
                 }
 
+                // Make sure we explicitly convert ObjectId to string format
+                const userId = user._id.toString();
+
+                console.log('User authenticated successfully:', {
+                    id: userId,
+                    email: user.email,
+                    name: user.name
+                });
+
+                // Return user data with explicit id property
                 return {
-                    id: user._id.toString(),
+                    id: userId,
                     name: user.name,
                     email: user.email,
                     username: user.username,
@@ -41,23 +51,34 @@ const handler = NextAuth({
             }
         })
     ],
+    // Explicitly configure the JWT callback to include the user ID
     callbacks: {
         async jwt({ token, user }) {
             if (user) {
-                token.id = user.id;
+                // When a user signs in, add their data to the token
+                token.id = user.id; // Use the explicit ID we set in authorize
                 token.username = user.username;
                 token.avatar = user.avatar;
                 token.role = user.role;
+
+                console.log('JWT callback - token ID set to:', token.id);
             }
             return token;
         },
         async session({ session, token }) {
-            if (token) {
-                session.user.id = token.id;
-                session.user.username = token.username;
-                session.user.avatar = token.avatar;
-                session.user.role = token.role;
+            // Ensure user object exists in the session
+            if (!session.user) {
+                session.user = {};
             }
+
+            // Add required user properties from token
+            session.user.id = token.id; // Add the ID to the session
+            session.user.username = token.username;
+            session.user.avatar = token.avatar;
+            session.user.role = token.role;
+
+            console.log('Session callback - user ID in session:', session.user.id);
+
             return session;
         }
     },

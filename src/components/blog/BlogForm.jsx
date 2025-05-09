@@ -14,7 +14,45 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp
 
 export default function BlogForm({ initialData = null, isEditing = false }) {
     const router = useRouter();
-    const { data: session } = useSession();
+    const { data: session, status: sessionStatus, update } = useSession({
+        required: true,
+        onUnauthenticated() {
+            // Redirect to login if not authenticated
+            router.push('/auth/login?callbackUrl=/blog/create');
+        }
+    });
+
+    // Add loading state based on session status
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Use effect to handle session loading and update
+    useEffect(() => {
+        console.log('Session status:', sessionStatus);
+        console.log('Session data:', session);
+
+        // Handle session loading state
+        if (sessionStatus === 'loading') {
+            setIsLoading(true);
+            return;
+        }
+
+        // If authenticated but no user ID found
+        if (sessionStatus === 'authenticated') {
+            if (!session?.user?.id) {
+                console.log('Session exists but no user ID found, trying to update session');
+                // Force refresh the session to get the latest data
+                update().then(() => {
+                    console.log('Session updated, new data:', session);
+                    setIsLoading(false);
+                });
+            } else {
+                console.log('Session has user ID:', session.user.id);
+                setIsLoading(false);
+            }
+        } else {
+            setIsLoading(false);
+        }
+    }, [session, sessionStatus, update, router]);
 
     const [formData, setFormData] = useState({
         title: initialData?.title || '',
@@ -135,21 +173,53 @@ export default function BlogForm({ initialData = null, isEditing = false }) {
                 return;
             }
 
-            // Prepare the request
+            // Enhanced session validation
+            if (!session || !session.user) {
+                console.error('Session missing when submitting blog');
+                setError('You must be logged in to create or edit blogs');
+                setIsSubmitting(false);
+                return;
+            }
+
+            if (!session.user.id) {
+                console.error('User ID missing in session:', session);
+                // Force a session update
+                await update();
+
+                // Check again after update
+                if (!session.user.id) {
+                    setError('Authentication error: Missing user ID. Please try logging out and back in.');
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            console.log('Submitting blog with author ID:', session.user.id);
+
+            // Prepare the request with author ID explicitly included
+            const blogData = {
+                ...formData,
+                author: session.user.id
+            };
+
             const url = isEditing
                 ? `/api/blogs/${initialData._id}`
                 : '/api/blogs';
 
             const method = isEditing ? 'PUT' : 'POST';
 
-            // Send the request
+            // Send the request with credentials included
             const response = await fetch(url, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                credentials: 'include', // Important for including cookies
+                body: JSON.stringify(blogData),
             });
+
+            // Log response status for debugging
+            console.log(`API response status: ${response.status}`);
 
             // Handle non-OK responses
             if (!response.ok) {
@@ -177,284 +247,295 @@ export default function BlogForm({ initialData = null, isEditing = false }) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-8">
-            {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 p-4 rounded-md">
-                    {error}
-                </div>
-            )}
-
-            {success && (
-                <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 p-4 rounded-md">
-                    {success}
-                </div>
-            )}
-
-            <div>
-                <label htmlFor="title" className="block text-lg font-medium mb-2">
-                    Blog Title
-                </label>
-                <input
-                    type="text"
-                    id="title"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                    placeholder="Enter a descriptive title"
-                    className="input text-xl w-full"
-                />
-            </div>
-
-            <div>
-                <div className="flex justify-between items-center mb-2">
-                    <label className="block text-lg font-medium">
-                        Cover Image
-                    </label>
-                    {coverImagePreview && (
-                        <button
-                            type="button"
-                            onClick={removeCoverImage}
-                            className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center"
-                        >
-                            <XMarkIcon className="h-4 w-4 mr-1" />
-                            Remove
-                        </button>
-                    )}
-                </div>
-
-                {imageError && (
-                    <div className="text-sm text-red-600 dark:text-red-400 mb-2">
-                        {imageError}
+        <>
+            {isLoading ? (
+                <div className="flex items-center justify-center min-h-[50vh]">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Loading your session...</p>
                     </div>
-                )}
+                </div>
+            ) : (
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    {error && (
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 p-4 rounded-md">
+                            {error}
+                        </div>
+                    )}
 
-                {coverImagePreview ? (
-                    <div className="relative h-64 rounded-lg overflow-hidden mb-3">
-                        <Image
-                            src={coverImagePreview}
-                            alt="Cover preview"
-                            fill
-                            className="object-cover"
-                            onError={() => {
-                                setImageError('Error loading image preview');
-                                setCoverImagePreview('');
-                            }}
+                    {success && (
+                        <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 p-4 rounded-md">
+                            {success}
+                        </div>
+                    )}
+
+                    <div>
+                        <label htmlFor="title" className="block text-lg font-medium mb-2">
+                            Blog Title
+                        </label>
+                        <input
+                            type="text"
+                            id="title"
+                            name="title"
+                            value={formData.title}
+                            onChange={handleChange}
+                            required
+                            placeholder="Enter a descriptive title"
+                            className="input text-xl w-full"
                         />
                     </div>
-                ) : (
-                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center mb-3">
-                        <div className="space-y-2">
-                            <div className="flex justify-center">
-                                <CameraIcon className="h-12 w-12 text-gray-400" />
-                            </div>
-                            <p className="text-gray-600 dark:text-gray-400">
-                                Upload a cover image to make your blog stand out
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                                Max size: 2MB. Formats: JPEG, PNG, GIF, WebP
-                            </p>
-                        </div>
-                    </div>
-                )}
 
-                <label className="btn-secondary inline-block cursor-pointer">
-                    <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
-                        onChange={handleCoverImageChange}
-                        className="sr-only"
-                    />
-                    {coverImagePreview ? 'Change Cover Image' : 'Upload Cover Image'}
-                </label>
-            </div>
-
-            <div>
-                <label className="block text-lg font-medium mb-2">
-                    Blog Content
-                </label>
-                <BlogEditor value={formData.content} onChange={handleEditorChange} />
-            </div>
-
-            <div>
-                <label htmlFor="tags" className="block text-lg font-medium mb-2">
-                    Tags
-                </label>
-                <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2 mb-3">
-                        {formData.tags.map((tag, index) => (
-                            <span
-                                key={index}
-                                className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full flex items-center text-sm"
-                            >
-                                #{tag}
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-lg font-medium">
+                                Cover Image
+                            </label>
+                            {coverImagePreview && (
                                 <button
                                     type="button"
-                                    onClick={() => removeTag(index)}
-                                    className="ml-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    onClick={removeCoverImage}
+                                    className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center"
                                 >
-                                    <XMarkIcon className="h-4 w-4" />
+                                    <XMarkIcon className="h-4 w-4 mr-1" />
+                                    Remove
                                 </button>
-                            </span>
-                        ))}
+                            )}
+                        </div>
+
+                        {imageError && (
+                            <div className="text-sm text-red-600 dark:text-red-400 mb-2">
+                                {imageError}
+                            </div>
+                        )}
+
+                        {coverImagePreview ? (
+                            <div className="relative h-64 rounded-lg overflow-hidden mb-3">
+                                <Image
+                                    src={coverImagePreview}
+                                    alt="Cover preview"
+                                    fill
+                                    className="object-cover"
+                                    onError={() => {
+                                        setImageError('Error loading image preview');
+                                        setCoverImagePreview('');
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center mb-3">
+                                <div className="space-y-2">
+                                    <div className="flex justify-center">
+                                        <CameraIcon className="h-12 w-12 text-gray-400" />
+                                    </div>
+                                    <p className="text-gray-600 dark:text-gray-400">
+                                        Upload a cover image to make your blog stand out
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                                        Max size: 2MB. Formats: JPEG, PNG, GIF, WebP
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <label className="btn-secondary inline-block cursor-pointer">
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                onChange={handleCoverImageChange}
+                                className="sr-only"
+                            />
+                            {coverImagePreview ? 'Change Cover Image' : 'Upload Cover Image'}
+                        </label>
                     </div>
 
-                    <div className="flex">
-                        <div className="relative flex-grow">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <TagIcon className="h-5 w-5 text-gray-400" />
+                    <div>
+                        <label className="block text-lg font-medium mb-2">
+                            Blog Content
+                        </label>
+                        <BlogEditor value={formData.content} onChange={handleEditorChange} />
+                    </div>
+
+                    <div>
+                        <label htmlFor="tags" className="block text-lg font-medium mb-2">
+                            Tags
+                        </label>
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2 mb-3">
+                                {formData.tags.map((tag, index) => (
+                                    <span
+                                        key={index}
+                                        className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full flex items-center text-sm"
+                                    >
+                                        #{tag}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeTag(index)}
+                                            className="ml-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        >
+                                            <XMarkIcon className="h-4 w-4" />
+                                        </button>
+                                    </span>
+                                ))}
                             </div>
-                            <input
-                                type="text"
-                                id="tag-input"
-                                value={tagInput}
-                                onChange={(e) => setTagInput(e.target.value)}
-                                className="input pl-10 w-full"
-                                placeholder="Add a tag and press Enter"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleAddTag(e);
-                                    }
-                                }}
-                                maxLength={20}
-                            />
+
+                            <div className="flex">
+                                <div className="relative flex-grow">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <TagIcon className="h-5 w-5 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        id="tag-input"
+                                        value={tagInput}
+                                        onChange={(e) => setTagInput(e.target.value)}
+                                        className="input pl-10 w-full"
+                                        placeholder="Add a tag and press Enter"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAddTag(e);
+                                            }
+                                        }}
+                                        maxLength={20}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddTag}
+                                    className="ml-2 btn-secondary"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Add up to 5 tags to categorize your blog
+                            </p>
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-lg font-medium mb-3">
+                            Privacy Settings
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div
+                                className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'public'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                    }`}
+                                onClick={() => setFormData(prev => ({ ...prev, privacy: 'public' }))}
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="public"
+                                        name="privacy"
+                                        value="public"
+                                        checked={formData.privacy === 'public'}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <label htmlFor="public" className="font-medium">Public</label>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    Anyone can view this blog post
+                                </p>
+                            </div>
+
+                            <div
+                                className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'followers'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                    }`}
+                                onClick={() => setFormData(prev => ({ ...prev, privacy: 'followers' }))}
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="followers"
+                                        name="privacy"
+                                        value="followers"
+                                        checked={formData.privacy === 'followers'}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <label htmlFor="followers" className="font-medium">Followers Only</label>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    Only your followers can view this blog post
+                                </p>
+                            </div>
+
+                            <div
+                                className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'connections'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                    }`}
+                                onClick={() => setFormData(prev => ({ ...prev, privacy: 'connections' }))}
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="connections"
+                                        name="privacy"
+                                        value="connections"
+                                        checked={formData.privacy === 'connections'}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <label htmlFor="connections" className="font-medium">Connections Only</label>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    Only your connections can view this blog post
+                                </p>
+                            </div>
+
+                            <div
+                                className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'private'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                    }`}
+                                onClick={() => setFormData(prev => ({ ...prev, privacy: 'private' }))}
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="private"
+                                        name="privacy"
+                                        value="private"
+                                        checked={formData.privacy === 'private'}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <label htmlFor="private" className="font-medium">Private</label>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    Only you can view this blog post
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end space-x-4">
                         <button
                             type="button"
-                            onClick={handleAddTag}
-                            className="ml-2 btn-secondary"
+                            className="btn-secondary"
+                            onClick={() => router.back()}
+                            disabled={isSubmitting}
                         >
-                            Add
+                            Cancel
+                        </button>
+
+                        <button
+                            type="submit"
+                            className="btn-primary"
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? 'Saving...' : isEditing ? 'Update Blog' : 'Publish Blog'}
                         </button>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Add up to 5 tags to categorize your blog
-                    </p>
-                </div>
-            </div>
-
-            <div>
-                <label className="block text-lg font-medium mb-3">
-                    Privacy Settings
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div
-                        className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'public'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
-                        onClick={() => setFormData(prev => ({ ...prev, privacy: 'public' }))}
-                    >
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="radio"
-                                id="public"
-                                name="privacy"
-                                value="public"
-                                checked={formData.privacy === 'public'}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600"
-                            />
-                            <label htmlFor="public" className="font-medium">Public</label>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            Anyone can view this blog post
-                        </p>
-                    </div>
-
-                    <div
-                        className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'followers'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
-                        onClick={() => setFormData(prev => ({ ...prev, privacy: 'followers' }))}
-                    >
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="radio"
-                                id="followers"
-                                name="privacy"
-                                value="followers"
-                                checked={formData.privacy === 'followers'}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600"
-                            />
-                            <label htmlFor="followers" className="font-medium">Followers Only</label>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            Only your followers can view this blog post
-                        </p>
-                    </div>
-
-                    <div
-                        className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'connections'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
-                        onClick={() => setFormData(prev => ({ ...prev, privacy: 'connections' }))}
-                    >
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="radio"
-                                id="connections"
-                                name="privacy"
-                                value="connections"
-                                checked={formData.privacy === 'connections'}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600"
-                            />
-                            <label htmlFor="connections" className="font-medium">Connections Only</label>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            Only your connections can view this blog post
-                        </p>
-                    </div>
-
-                    <div
-                        className={`border rounded-lg p-4 cursor-pointer transition-colors ${formData.privacy === 'private'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
-                        onClick={() => setFormData(prev => ({ ...prev, privacy: 'private' }))}
-                    >
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="radio"
-                                id="private"
-                                name="privacy"
-                                value="private"
-                                checked={formData.privacy === 'private'}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-blue-600"
-                            />
-                            <label htmlFor="private" className="font-medium">Private</label>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            Only you can view this blog post
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end space-x-4">
-                <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => router.back()}
-                    disabled={isSubmitting}
-                >
-                    Cancel
-                </button>
-
-                <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={isSubmitting}
-                >
-                    {isSubmitting ? 'Saving...' : isEditing ? 'Update Blog' : 'Publish Blog'}
-                </button>
-            </div>
-        </form>
+                </form>
+            )}
+        </>
     );
 }

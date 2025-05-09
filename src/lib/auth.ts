@@ -120,3 +120,30 @@ export function canAccessBlog(blog: BlogData, session: UserSession): boolean {
 export function isAdmin(session: UserSession): boolean {
     return session?.user?.role === 'admin';
 }
+
+// Get the current authenticated user ID with proper error checking
+export async function getCurrentUser() {
+    try {
+        const session = await getServerSession();
+
+        if (!session) {
+            return { user: null, error: 'No active session' };
+        }
+
+        if (!session.user) {
+            return { user: null, error: 'No user in session' };
+        }
+
+        if (!session.user.id) {
+            return { user: null, error: 'No user ID in session' };
+        }
+
+        return {
+            user: session.user,
+            error: null
+        };
+    } catch (error) {
+        console.error('Error getting current user:', error);
+        return { user: null, error: error.message };
+    }
+}

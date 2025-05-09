@@ -2,11 +2,13 @@
   "name": "blogly",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed": "node all-in-one-seed.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -24,6 +26,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dompurify": "^3.2.5",
+    "dotenv": "^16.5.0",
     "lucide-react": "^0.503.0",
     "mongoose": "^8.14.0",
     "next": "^15.3.1",

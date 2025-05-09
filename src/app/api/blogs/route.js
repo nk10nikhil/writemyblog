@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import connectToDatabase from '@/lib/mongodb';
 import Blog from '@/models/Blog';
+import slugify from 'slugify';
+import { getCurrentUser } from '@/lib/auth';
+import User from '@/models/User'; // Import User model
 
 // Mock data for development when MongoDB isn't available
 const MOCK_BLOGS = [
@@ -335,51 +338,78 @@ export async function GET(request) {
 // Create blog
 export async function POST(request) {
     try {
-        // Verify user authentication
+        // Connect to database first
+        await connectToDatabase();
+
+        // Get the session using getServerSession()
         const session = await getServerSession();
-        if (!session) {
+        console.log("API - Session exists:", !!session);
+
+        // Check if the user is authenticated at all
+        if (!session || !session.user) {
+            console.error("API - Authentication failed: No session or user");
             return NextResponse.json(
                 { success: false, message: 'Authentication required' },
                 { status: 401 }
             );
         }
 
-        // Connect to database
-        await connectToDatabase();
+        console.log("API - User in session:", session.user);
 
-        // Parse request body
-        const data = await request.json();
+        // Special handling for user ID - this is the critical fix
+        let userId = session.user.id;
 
-        // Validate required fields
-        if (!data.title || !data.content) {
+        // If we don't have a user ID but have other user data, try to use an alternative
+        if (!userId && session.user.email) {
+            console.log("API - No user ID in session, trying to find user by email:", session.user.email);
+            // Try to find the user by email as a fallback
+            const user = await User.findOne({ email: session.user.email });
+            if (user) {
+                userId = user._id.toString();
+                console.log("API - Found user by email, using ID:", userId);
+            }
+        }
+
+        // Final check for user ID
+        if (!userId) {
+            console.error("API - Unable to determine user ID from session or database lookup");
             return NextResponse.json(
-                { success: false, message: 'Title and content are required' },
-                { status: 400 }
+                { success: false, message: 'Invalid user session - missing ID' },
+                { status: 401 }
             );
         }
 
-        // Create new blog post
+        // Parse request body
+        const data = await request.json();
+        console.log("API - Creating blog with title:", data.title);
+        console.log("API - Author ID to be used:", userId);
+
+        // Create new blog post with explicit author ID
         const newBlog = new Blog({
             title: data.title,
             content: data.content,
-            author: session.user.id,
+            author: userId,
             tags: data.tags || [],
             privacy: data.privacy || 'public',
             coverImage: data.coverImage || '',
+            slug: slugify(data.title, { lower: true, strict: true })
         });
 
         // Save blog to database
-        await newBlog.save();
+        const savedBlog = await newBlog.save();
+        console.log("API - Blog saved successfully with ID:", savedBlog._id);
 
-        // Convert MongoDB _id to string
-        const blogToReturn = {
-            ...newBlog.toObject(),
-            _id: newBlog._id.toString(),
-            author: newBlog.author.toString()
-        };
-
+        // Return success response
         return NextResponse.json(
-            { success: true, message: 'Blog created successfully', blog: blogToReturn },
+            {
+                success: true,
+                message: 'Blog created successfully',
+                blog: {
+                    _id: savedBlog._id.toString(),
+                    title: savedBlog.title,
+                    slug: savedBlog.slug
+                }
+            },
             { status: 201 }
         );
     } catch (error) {
