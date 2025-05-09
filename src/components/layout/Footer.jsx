@@ -22,7 +22,7 @@ export default function Footer() {
                                     className="object-contain"
                                 />
                             </div>
-                            <span className="text-xl font-bold">ModernBlog</span>
+                            <span className="text-xl font-bold">Write My Blog</span>
                         </Link>
                         <p className="mt-4 text-gray-600 dark:text-gray-400">
                             A modern blogging platform for writers and readers to connect, share stories, and engage with content.
@@ -123,7 +123,7 @@ export default function Footer() {
                 </div>
                 <div className="mt-10 border-t border-gray-200 dark:border-gray-800 pt-6 flex flex-col md:flex-row justify-between items-center">
                     <p className="text-gray-600 dark:text-gray-400">
-                        &copy; {currentYear} ModernBlog. All rights reserved.
+                        &copy; {currentYear} Write My Blog. All rights reserved.
                     </p>
                     <div className="mt-4 md:mt-0 flex space-x-6">
                         <Link
